@@ -30,7 +30,7 @@ This document contains the Master System Prompt to be used in **Cursor Composer 
 3. Integrate `lance` to perform vector search directly on S3 fragments.
 4. Integrate `duckdb` for relational SQL metadata filtering.
 5. Expected input: OpenAI `text-embedding-3-small` (1536-dim).
-6. Target memory: 256mb (to accommodate DuckDB + Lance overhead). Target execution: <800ms for 100k records. Ensure graceful degradation on OOM limits.
+6. Target memory: Optimize code for 256mb ram memory (to accommodate DuckDB + Lance overhead), but target 512mb for deployement. Target execution: <800ms for 100k records. Ensure graceful degradation on OOM limits.
 
 **PHASE 3: MCP BRIDGE (`/mcp-bridge`)**
 1. Build Node.js server using `@modelcontextprotocol/sdk`.
