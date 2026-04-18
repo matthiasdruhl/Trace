@@ -1,0 +1,21 @@
+[package]
+name = "lambda-engine"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+lambda_runtime = "0.13"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+aws-config = "1"
+aws-sdk-s3 = "1"
+
+# Search / metadata stack (pin major lines for reproducible builds)
+lance = "2"
+duckdb = { version = "1", features = ["bundled"] }
+
+[[bin]]
+name = "bootstrap"
+path = "src/main.rs"

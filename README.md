@@ -44,3 +44,9 @@ Enterprises sit on petabytes of "Dark Data"—unstructured logs, legal depositio
 * **Local-Daemon Sync:** A Rust-based service to bridge local desktop files with cloud archives.
 
 ---
+
+## Rust API documentation
+
+Indexed links for the core crates (**Lance**, **DuckDB**, **AWS SDK for S3**) used by the search engine are in [`docs/RUST_CRATE_DOCS.md`](docs/RUST_CRATE_DOCS.md).
+
+---
