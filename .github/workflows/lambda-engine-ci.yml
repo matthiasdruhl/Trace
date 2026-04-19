@@ -79,4 +79,6 @@ jobs:
         run: sam validate --lint
 
       - name: SAM build (ARM64 / provided.al2023 via cargo-lambda)
-        run: sam build
+        env:
+          SAM_CLI_BETA_RUST_CARGO_LAMBDA: "1"
+        run: sam build --beta-features

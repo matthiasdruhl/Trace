@@ -58,7 +58,7 @@ Resources:
   TraceSearchFunction:
     Type: AWS::Serverless::Function
     Metadata:
-      BuildMethod: cargo-lambda
+      BuildMethod: rust-cargolambda
     Properties:
       FunctionName: !Sub '${AWS::StackName}-trace-search'
       CodeUri: lambda-engine
