@@ -33,7 +33,9 @@ fn parse_query_vector_dim() -> Result<usize, String> {
     if t.is_empty() {
         return Ok(DEFAULT_QUERY_VECTOR_DIM);
     }
-    let n = t.parse::<usize>().map_err(|_| ERR_DIM_NOT_INT.to_string())?;
+    let n = t
+        .parse::<usize>()
+        .map_err(|_| ERR_DIM_NOT_INT.to_string())?;
     if n == 0 {
         return Err(ERR_DIM_NOT_INT.to_string());
     }
@@ -48,7 +50,10 @@ fn parse_query_vector_dim() -> Result<usize, String> {
 const ERR_LANCE_S3_URI_SHAPE: &str =
     "Invalid Configuration: TRACE_LANCE_S3_URI must be a valid s3:// path and cannot be blank.";
 
-fn env_nonempty(name: &'static str, raw: Result<String, std::env::VarError>) -> Result<String, String> {
+fn env_nonempty(
+    name: &'static str,
+    raw: Result<String, std::env::VarError>,
+) -> Result<String, String> {
     let s = raw.map_err(|e| format!("{name}: {e}"))?;
     let t = s.trim();
     if t.is_empty() {
@@ -93,7 +98,10 @@ fn validate_normalize_s3_lance_uri(raw: &str) -> Result<(String, String, String)
     Ok((lance_uri, bucket.to_string(), key.to_string()))
 }
 
-fn lance_uri_from_bucket_and_prefix(bucket: &str, prefix: &str) -> Result<(String, String, String), String> {
+fn lance_uri_from_bucket_and_prefix(
+    bucket: &str,
+    prefix: &str,
+) -> Result<(String, String, String), String> {
     let bucket = bucket.trim().trim_end_matches('/');
     let prefix = prefix.trim().trim_start_matches('/').trim_end_matches('/');
     if bucket.is_empty() {
@@ -126,41 +134,36 @@ pub struct EnvConfig {
 
 impl EnvConfig {
     pub fn from_env() -> Result<Self, String> {
-        let (lance_uri, s3_bucket, lance_prefix) =
-            match std::env::var("TRACE_LANCE_S3_URI") {
-                Err(VarError::NotPresent) => {
-                    let bucket = env_nonempty("TRACE_S3_BUCKET", std::env::var("TRACE_S3_BUCKET"))?;
-                    let prefix =
-                        env_nonempty("TRACE_LANCE_PREFIX", std::env::var("TRACE_LANCE_PREFIX"))?;
-                    lance_uri_from_bucket_and_prefix(&bucket, &prefix)?
-                }
-                Err(e) => {
-                    return Err(format!("TRACE_LANCE_S3_URI: {e}"));
-                }
-                Ok(s) => {
-                    if s.trim().is_empty() {
-                        return Err(ERR_LANCE_S3_URI_SHAPE.to_string());
-                    }
-                    validate_normalize_s3_lance_uri(&s)?
-                }
-            };
-
-        let api_key_secret = std::env::var("TRACE_API_KEY_SECRET")
-            .ok()
-            .and_then(|s| {
-                let t = s.trim();
-                if t.is_empty() {
-                    None
-                } else {
-                    Some(t.to_string())
-                }
-            });
-
-        AUTH_MODE_LOGGED.call_once(|| {
-            match &api_key_secret {
-                None => tracing::info!("AUTH MODE: IAM-only (No API Key required)"),
-                Some(_) => tracing::info!("AUTH MODE: API Key + IAM"),
+        let (lance_uri, s3_bucket, lance_prefix) = match std::env::var("TRACE_LANCE_S3_URI") {
+            Err(VarError::NotPresent) => {
+                let bucket = env_nonempty("TRACE_S3_BUCKET", std::env::var("TRACE_S3_BUCKET"))?;
+                let prefix =
+                    env_nonempty("TRACE_LANCE_PREFIX", std::env::var("TRACE_LANCE_PREFIX"))?;
+                lance_uri_from_bucket_and_prefix(&bucket, &prefix)?
             }
+            Err(e) => {
+                return Err(format!("TRACE_LANCE_S3_URI: {e}"));
+            }
+            Ok(s) => {
+                if s.trim().is_empty() {
+                    return Err(ERR_LANCE_S3_URI_SHAPE.to_string());
+                }
+                validate_normalize_s3_lance_uri(&s)?
+            }
+        };
+
+        let api_key_secret = std::env::var("TRACE_API_KEY_SECRET").ok().and_then(|s| {
+            let t = s.trim();
+            if t.is_empty() {
+                None
+            } else {
+                Some(t.to_string())
+            }
+        });
+
+        AUTH_MODE_LOGGED.call_once(|| match &api_key_secret {
+            None => tracing::info!("AUTH MODE: IAM-only (No API Key required)"),
+            Some(_) => tracing::info!("AUTH MODE: API Key + IAM"),
         });
 
         let max_payload_bytes = match std::env::var("TRACE_MAX_PAYLOAD_BYTES") {
@@ -219,11 +222,7 @@ static S3_CLIENT: OnceCell<S3Client> = OnceCell::const_new();
 
 pub async fn sdk_config() -> &'static aws_config::SdkConfig {
     SDK_CONFIG
-        .get_or_init(|| async {
-            aws_config::defaults(BehaviorVersion::latest())
-                .load()
-                .await
-        })
+        .get_or_init(|| async { aws_config::defaults(BehaviorVersion::latest()).load().await })
         .await
 }
 

@@ -12,9 +12,7 @@ pub fn header_ci<'a>(
     headers: &'a HashMap<String, String>,
     name: &str,
 ) -> Result<Option<&'a str>, ApiError> {
-    let mut matches = headers
-        .iter()
-        .filter(|(k, _)| k.eq_ignore_ascii_case(name));
+    let mut matches = headers.iter().filter(|(k, _)| k.eq_ignore_ascii_case(name));
     let first = matches.next();
     match first {
         None => Ok(None),

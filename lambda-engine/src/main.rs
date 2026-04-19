@@ -47,20 +47,14 @@ async fn handler(event: LambdaEvent<Value>) -> Result<Value, Error> {
         }
     }
 
-    let req = match parse_json_request_body::<SearchRequest>(
-        &payload,
-        &ctx,
-        config.max_payload_bytes,
-    ) {
-        Ok(r) => r,
-        Err(e) => return respond_api_error(&ctx, e),
-    };
+    let req =
+        match parse_json_request_body::<SearchRequest>(&payload, &ctx, config.max_payload_bytes) {
+            Ok(r) => r,
+            Err(e) => return respond_api_error(&ctx, e),
+        };
 
     let s3 = config::s3_client().await;
-    let deps = RuntimeDeps {
-        config: &config,
-        s3: &s3,
-    };
+    let deps = RuntimeDeps { config, s3 };
 
     match run_search_kernel(&req, &deps).await {
         Ok(resp) => {

@@ -13,7 +13,7 @@ pub fn sanitize_for_log(input: &str) -> String {
             .find(|(_, c)| c.is_whitespace() || matches!(c, ')' | ']' | '"' | '\'' | ',' | ';'))
             .map(|(i, _)| after + i)
             .unwrap_or(s.len());
-        s.replace_range(pos..end, "s3://<redacted>");
+        s.replace_range(pos..end, "<redacted-s3-uri>");
     }
     if s.len() > LOG_DETAIL_MAX_CHARS {
         s.truncate(LOG_DETAIL_MAX_CHARS.saturating_sub(3));
@@ -124,7 +124,7 @@ mod tests {
     fn sanitize_redacts_s3_uri() {
         let s = sanitize_for_log("open s3://my-bucket/secret/path failed");
         assert!(!s.contains("my-bucket"));
-        assert!(s.contains("s3://<redacted>"));
+        assert!(s.contains("<redacted-s3-uri>"));
     }
 
     #[test]

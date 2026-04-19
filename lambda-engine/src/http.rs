@@ -75,7 +75,10 @@ pub fn request_body_bytes(
                     base64::engine::general_purpose::STANDARD
                         .decode(s.trim().as_bytes())
                         .map_err(|_| {
-                            ApiError::bad_request("INVALID_BASE64", "Request body is not valid Base64")
+                            ApiError::bad_request(
+                                "INVALID_BASE64",
+                                "Request body is not valid Base64",
+                            )
                         })?
                 } else {
                     s.as_bytes().to_vec()

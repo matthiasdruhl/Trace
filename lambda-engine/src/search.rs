@@ -20,8 +20,7 @@ use crate::error::ApiError;
 
 pub use crate::config::DEFAULT_QUERY_VECTOR_DIM;
 
-const DEFAULT_COLUMNS: &[&str] =
-    &["incident_id", "timestamp", "city_code", "doc_type"];
+const DEFAULT_COLUMNS: &[&str] = &["incident_id", "timestamp", "city_code", "doc_type"];
 const ALLOWED_COLUMNS: &[&str] = &[
     "incident_id",
     "timestamp",
@@ -108,14 +107,19 @@ pub struct RuntimeDeps<'a> {
 
 #[derive(Debug, Clone)]
 enum KernelError {
-    DimMismatch { expected: usize, actual: usize },
+    DimMismatch {
+        expected: usize,
+        actual: usize,
+    },
     InvalidColumn(String),
     /// Dataset missing or could not be opened from storage (no URI or provider text retained).
     DatasetNotAvailable,
     /// Object storage denied access (permissions / 403-class).
     S3AccessDenied,
     /// Internal projection / conversion failures that are safe to log but not return to clients.
-    Lance { detail: String },
+    Lance {
+        detail: String,
+    },
     /// Other Lance execution / IO failures (no raw backend message retained).
     LanceExecution,
 }
@@ -293,37 +297,41 @@ fn arrow_scalar_to_json(
     }
     match data_type {
         DataType::Utf8 => {
-            let a = col.as_any().downcast_ref::<StringArray>().ok_or_else(|| {
-                KernelError::Lance {
-                    detail: "expected Utf8 (StringArray)".to_string(),
-                }
-            })?;
+            let a =
+                col.as_any()
+                    .downcast_ref::<StringArray>()
+                    .ok_or_else(|| KernelError::Lance {
+                        detail: "expected Utf8 (StringArray)".to_string(),
+                    })?;
             Ok(Value::String(a.value(row).to_string()))
         }
         DataType::LargeUtf8 => {
-            let a = col.as_any().downcast_ref::<LargeStringArray>().ok_or_else(|| {
-                KernelError::Lance {
+            let a = col
+                .as_any()
+                .downcast_ref::<LargeStringArray>()
+                .ok_or_else(|| KernelError::Lance {
                     detail: "expected LargeUtf8".to_string(),
-                }
-            })?;
+                })?;
             Ok(Value::String(a.value(row).to_string()))
         }
         DataType::Utf8View => {
-            let a = col.as_any().downcast_ref::<StringViewArray>().ok_or_else(|| {
-                KernelError::Lance {
+            let a = col
+                .as_any()
+                .downcast_ref::<StringViewArray>()
+                .ok_or_else(|| KernelError::Lance {
                     detail: "expected Utf8View".to_string(),
-                }
-            })?;
+                })?;
             Ok(Value::String(a.value(row).to_string()))
         }
         DataType::Timestamp(unit, _tz) => {
             let micros: i64 = match unit {
                 TimeUnit::Second => {
-                    let a = col.as_any().downcast_ref::<TimestampSecondArray>().ok_or_else(|| {
-                        KernelError::Lance {
+                    let a = col
+                        .as_any()
+                        .downcast_ref::<TimestampSecondArray>()
+                        .ok_or_else(|| KernelError::Lance {
                             detail: "expected TimestampSecondArray".to_string(),
-                        }
-                    })?;
+                        })?;
                     a.value(row).saturating_mul(1_000_000)
                 }
                 TimeUnit::Millisecond => {
@@ -354,48 +362,52 @@ fn arrow_scalar_to_json(
                     a.value(row) / 1_000
                 }
             };
-            let dt = chrono::DateTime::<chrono::Utc>::from_timestamp_micros(micros).ok_or_else(|| {
-                KernelError::Lance {
+            let dt = chrono::DateTime::<chrono::Utc>::from_timestamp_micros(micros).ok_or_else(
+                || KernelError::Lance {
                     detail: "timestamp out of range".to_string(),
-                }
-            })?;
+                },
+            )?;
             // Public contract: always RFC 3339 with explicit UTC offset (`Z`).
             Ok(Value::String(dt.to_rfc3339()))
         }
         DataType::Float32 => {
-            let a = col.as_any().downcast_ref::<Float32Array>().ok_or_else(|| {
-                KernelError::Lance {
-                    detail: "expected Float32Array".to_string(),
-                }
-            })?;
+            let a =
+                col.as_any()
+                    .downcast_ref::<Float32Array>()
+                    .ok_or_else(|| KernelError::Lance {
+                        detail: "expected Float32Array".to_string(),
+                    })?;
             Ok(serde_json::Number::from_f64(a.value(row) as f64)
                 .map(Value::Number)
                 .unwrap_or(Value::Null))
         }
         DataType::Float64 => {
-            let a = col.as_any().downcast_ref::<Float64Array>().ok_or_else(|| {
-                KernelError::Lance {
-                    detail: "expected Float64Array".to_string(),
-                }
-            })?;
+            let a =
+                col.as_any()
+                    .downcast_ref::<Float64Array>()
+                    .ok_or_else(|| KernelError::Lance {
+                        detail: "expected Float64Array".to_string(),
+                    })?;
             Ok(serde_json::Number::from_f64(a.value(row))
                 .map(Value::Number)
                 .unwrap_or(Value::Null))
         }
         DataType::Int32 => {
-            let a = col.as_any().downcast_ref::<Int32Array>().ok_or_else(|| {
-                KernelError::Lance {
-                    detail: "expected Int32Array".to_string(),
-                }
-            })?;
+            let a =
+                col.as_any()
+                    .downcast_ref::<Int32Array>()
+                    .ok_or_else(|| KernelError::Lance {
+                        detail: "expected Int32Array".to_string(),
+                    })?;
             Ok(Value::Number(a.value(row).into()))
         }
         DataType::Int64 => {
-            let a = col.as_any().downcast_ref::<Int64Array>().ok_or_else(|| {
-                KernelError::Lance {
-                    detail: "expected Int64Array".to_string(),
-                }
-            })?;
+            let a =
+                col.as_any()
+                    .downcast_ref::<Int64Array>()
+                    .ok_or_else(|| KernelError::Lance {
+                        detail: "expected Int64Array".to_string(),
+                    })?;
             Ok(Value::Number(a.value(row).into()))
         }
         other => Err(KernelError::Lance {
@@ -404,20 +416,13 @@ fn arrow_scalar_to_json(
     }
 }
 
-fn record_batch_row_to_object(
-    batch: &RecordBatch,
-    row: usize,
-) -> Result<Value, KernelError> {
+fn record_batch_row_to_object(batch: &RecordBatch, row: usize) -> Result<Value, KernelError> {
     let schema = batch.schema();
     let mut map = Map::new();
     for (col_idx, field) in schema.fields().iter().enumerate() {
         let col = batch.column(col_idx);
         let name = field.name();
-        let out_key = if name == "_distance" {
-            "score"
-        } else {
-            name
-        };
+        let out_key = if name == "_distance" { "score" } else { name };
         let v = arrow_scalar_to_json(col, row, field.data_type())?;
         map.insert(out_key.to_string(), v);
     }
@@ -436,22 +441,22 @@ async fn run_vector_search(
             actual: req.query_vector.len(),
         });
     }
-    debug_assert!(k >= 1, "k must be validated before calling run_vector_search");
+    debug_assert!(
+        k >= 1,
+        "k must be validated before calling run_vector_search"
+    );
 
     let projection = resolve_projection(req)?;
     let proj_refs: Vec<&str> = projection.iter().map(|s| s.as_str()).collect();
 
     let flat = Float32Array::from_iter_values(req.query_vector.iter().copied());
     let item_field = Arc::new(Field::new("item", DataType::Float32, true));
-    let query = FixedSizeListArray::try_new(
-        item_field,
-        dim as i32,
-        Arc::new(flat),
-        None,
-    )
-    .map_err(|e| KernelError::Lance {
-        detail: format!("query vector (FixedSizeList): {e}"),
-    })?;
+    let query =
+        FixedSizeListArray::try_new(item_field, dim as i32, Arc::new(flat), None).map_err(|e| {
+            KernelError::Lance {
+                detail: format!("query vector (FixedSizeList): {e}"),
+            }
+        })?;
 
     let mut stream = dataset
         .scan()
@@ -563,13 +568,15 @@ mod tests {
     #[test]
     fn sql_filter_limit_counts_chars_not_utf8_bytes() {
         let mut r = req(DEFAULT_QUERY_VECTOR_DIM, None);
-        // 3 UTF-8 bytes per "é" but one char each — stay under char cap even if bytes > 8192
-        r.sql_filter = "é".repeat(4000);
+        // U+20AC is 3 UTF-8 bytes but one Unicode scalar value, so bytes can exceed the cap
+        // while the character count remains below it.
+        r.sql_filter = "\u{20AC}".repeat(3000);
         assert!(r.sql_filter.len() > 8192);
-        assert_eq!(r.sql_filter.chars().count(), 4000);
+        assert_eq!(r.sql_filter.chars().count(), 3000);
         r.validate().unwrap();
 
-        r.sql_filter.push_str(&"a".repeat(MAX_SQL_FILTER_CHARS - 4000 + 1));
+        r.sql_filter
+            .push_str(&"a".repeat(MAX_SQL_FILTER_CHARS - 3000 + 1));
         assert!(r.validate().is_err());
     }
 
