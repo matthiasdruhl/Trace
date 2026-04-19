@@ -265,4 +265,51 @@ mod tests {
         assert_eq!(err.status, 400);
         assert_eq!(err.code, "INVALID_JSON");
     }
+
+    #[test]
+    fn direct_invoke_invalid_base64_uses_invalid_base64_code() {
+        let payload = json!({
+            "body": "%%%not-base64%%%",
+            "isBase64Encoded": true
+        });
+        let ctx = invocation_context(&payload);
+        let err = extract_request_body(&payload, &ctx, 1024).unwrap_err();
+        assert_eq!(err.status, 400);
+        assert_eq!(err.code, "INVALID_BASE64");
+    }
+
+    #[test]
+    fn direct_invoke_without_body_serializes_whole_payload() {
+        let payload = json!({
+            "query_vector": [0.0],
+            "limit": 3
+        });
+        let ctx = invocation_context(&payload);
+        let parsed = parse_json_request_body::<serde_json::Value>(&payload, &ctx, 1024).unwrap();
+        assert_eq!(parsed["limit"], 3);
+        assert_eq!(parsed["query_vector"][0], 0.0);
+    }
+
+    #[test]
+    fn oversized_direct_payload_is_413() {
+        let payload = json!({
+            "message": "x".repeat(64)
+        });
+        let ctx = invocation_context(&payload);
+        let err = extract_request_body(&payload, &ctx, 8).unwrap_err();
+        assert_eq!(err.status, 413);
+        assert_eq!(err.code, "PAYLOAD_TOO_LARGE");
+    }
+
+    #[test]
+    fn malformed_apigw_event_uses_invalid_apigw_event_code() {
+        let payload = json!({
+            "version": "2.0",
+            "body": 42
+        });
+        let ctx = invocation_context(&payload);
+        let err = extract_request_body(&payload, &ctx, 1024).unwrap_err();
+        assert_eq!(err.status, 400);
+        assert_eq!(err.code, "INVALID_APIGW_EVENT");
+    }
 }

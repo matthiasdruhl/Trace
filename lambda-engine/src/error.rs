@@ -132,4 +132,18 @@ mod tests {
         let long = "x".repeat(600);
         assert!(sanitize_for_log(&long).len() <= 512);
     }
+
+    #[test]
+    fn sanitize_redacts_multiple_s3_uris() {
+        let s = sanitize_for_log("copy s3://bucket-a/a then s3://bucket-b/b");
+        assert!(!s.contains("bucket-a"));
+        assert!(!s.contains("bucket-b"));
+        assert_eq!(s.matches("<redacted-s3-uri>").count(), 2);
+    }
+
+    #[test]
+    fn sanitize_stops_at_punctuation_boundaries() {
+        let s = sanitize_for_log("failed (s3://bucket/secret/path), retrying");
+        assert!(s.contains("(<redacted-s3-uri>),"));
+    }
 }

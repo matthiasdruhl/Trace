@@ -78,7 +78,5 @@ jobs:
       - name: SAM validate (--lint)
         run: sam validate --lint
 
-      # Heavy path: only on PRs or default branch so feature-branch pushes stay lighter.
       - name: SAM build (ARM64 / provided.al2023 via cargo-lambda)
-        if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_name == 'main')
         run: sam build

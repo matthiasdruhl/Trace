@@ -176,4 +176,11 @@ mod tests {
         headers.insert("x-trace-api-key".to_string(), String::new());
         assert!(enforce_http_api_key_if_configured(Some("secret"), Some(&headers)).is_err());
     }
+
+    #[test]
+    fn api_key_mode_without_headers_map_returns_missing_api_key() {
+        let err = enforce_http_api_key_if_configured(Some("secret"), None).unwrap_err();
+        assert_eq!(err.status, 401);
+        assert_eq!(err.code, "MISSING_API_KEY");
+    }
 }

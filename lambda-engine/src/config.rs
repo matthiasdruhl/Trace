@@ -240,6 +240,43 @@ pub async fn warmup_clients() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+    const TEST_ENV_VARS: [&str; 6] = [
+        "TRACE_LANCE_S3_URI",
+        "TRACE_S3_BUCKET",
+        "TRACE_LANCE_PREFIX",
+        "TRACE_API_KEY_SECRET",
+        "TRACE_MAX_PAYLOAD_BYTES",
+        "TRACE_QUERY_VECTOR_DIM",
+    ];
+
+    fn with_test_env<T>(vars: &[(&str, Option<&str>)], f: impl FnOnce() -> T) -> T {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let saved: Vec<(String, Option<String>)> = TEST_ENV_VARS
+            .iter()
+            .map(|name| ((*name).to_string(), std::env::var(name).ok()))
+            .collect();
+
+        for (name, value) in vars {
+            match value {
+                Some(v) => unsafe { std::env::set_var(name, v) },
+                None => unsafe { std::env::remove_var(name) },
+            }
+        }
+
+        let out = f();
+
+        for (name, value) in saved {
+            match value {
+                Some(v) => unsafe { std::env::set_var(name, v) },
+                None => unsafe { std::env::remove_var(name) },
+            }
+        }
+
+        out
+    }
 
     #[test]
     fn normalizes_explicit_uri_trailing_slashes() {
@@ -261,5 +298,133 @@ mod tests {
         assert_eq!(uri, "s3://b/p");
         assert_eq!(b, "b");
         assert_eq!(p, "p");
+    }
+
+    #[test]
+    fn from_env_prefers_explicit_uri_over_bucket_and_prefix() {
+        with_test_env(
+            &[
+                ("TRACE_LANCE_S3_URI", Some("s3://explicit-bucket/data/root")),
+                ("TRACE_S3_BUCKET", Some("fallback-bucket")),
+                ("TRACE_LANCE_PREFIX", Some("fallback-prefix")),
+                ("TRACE_MAX_PAYLOAD_BYTES", None),
+                ("TRACE_QUERY_VECTOR_DIM", None),
+                ("TRACE_API_KEY_SECRET", Some("  top-secret  ")),
+            ],
+            || {
+                let cfg = EnvConfig::from_env().unwrap();
+                assert_eq!(cfg.lance_uri, "s3://explicit-bucket/data/root");
+                assert_eq!(cfg.s3_bucket, "explicit-bucket");
+                assert_eq!(cfg.lance_prefix, "data/root");
+                assert_eq!(cfg.api_key_secret.as_deref(), Some("top-secret"));
+            },
+        );
+    }
+
+    #[test]
+    fn from_env_builds_uri_from_bucket_and_prefix_when_uri_missing() {
+        with_test_env(
+            &[
+                ("TRACE_LANCE_S3_URI", None),
+                ("TRACE_S3_BUCKET", Some("trace-vault")),
+                ("TRACE_LANCE_PREFIX", Some("/uber_audit.lance/")),
+                ("TRACE_MAX_PAYLOAD_BYTES", Some("1024")),
+                ("TRACE_QUERY_VECTOR_DIM", Some("32")),
+                ("TRACE_API_KEY_SECRET", Some("")),
+            ],
+            || {
+                let cfg = EnvConfig::from_env().unwrap();
+                assert_eq!(cfg.lance_uri, "s3://trace-vault/uber_audit.lance");
+                assert_eq!(cfg.s3_bucket, "trace-vault");
+                assert_eq!(cfg.lance_prefix, "uber_audit.lance");
+                assert_eq!(cfg.max_payload_bytes, 1024);
+                assert_eq!(cfg.query_vector_dim, 32);
+                assert_eq!(cfg.api_key_secret, None);
+            },
+        );
+    }
+
+    #[test]
+    fn from_env_rejects_blank_explicit_uri() {
+        with_test_env(
+            &[
+                ("TRACE_LANCE_S3_URI", Some("   ")),
+                ("TRACE_S3_BUCKET", None),
+                ("TRACE_LANCE_PREFIX", None),
+                ("TRACE_MAX_PAYLOAD_BYTES", None),
+                ("TRACE_QUERY_VECTOR_DIM", None),
+                ("TRACE_API_KEY_SECRET", None),
+            ],
+            || {
+                let err = EnvConfig::from_env().unwrap_err();
+                assert_eq!(err, ERR_LANCE_S3_URI_SHAPE);
+            },
+        );
+    }
+
+    #[test]
+    fn from_env_rejects_invalid_payload_size() {
+        with_test_env(
+            &[
+                ("TRACE_LANCE_S3_URI", Some("s3://trace-vault/data")),
+                ("TRACE_S3_BUCKET", None),
+                ("TRACE_LANCE_PREFIX", None),
+                ("TRACE_MAX_PAYLOAD_BYTES", Some("0")),
+                ("TRACE_QUERY_VECTOR_DIM", None),
+                ("TRACE_API_KEY_SECRET", None),
+            ],
+            || {
+                let err = EnvConfig::from_env().unwrap_err();
+                assert_eq!(err, ERR_MAX_PAYLOAD_BYTES);
+            },
+        );
+
+        with_test_env(
+            &[
+                ("TRACE_LANCE_S3_URI", Some("s3://trace-vault/data")),
+                ("TRACE_S3_BUCKET", None),
+                ("TRACE_LANCE_PREFIX", None),
+                ("TRACE_MAX_PAYLOAD_BYTES", Some("abc")),
+                ("TRACE_QUERY_VECTOR_DIM", None),
+                ("TRACE_API_KEY_SECRET", None),
+            ],
+            || {
+                let err = EnvConfig::from_env().unwrap_err();
+                assert!(err.contains(ERR_MAX_PAYLOAD_BYTES));
+            },
+        );
+    }
+
+    #[test]
+    fn from_env_rejects_invalid_query_vector_dim() {
+        with_test_env(
+            &[
+                ("TRACE_LANCE_S3_URI", Some("s3://trace-vault/data")),
+                ("TRACE_S3_BUCKET", None),
+                ("TRACE_LANCE_PREFIX", None),
+                ("TRACE_MAX_PAYLOAD_BYTES", None),
+                ("TRACE_QUERY_VECTOR_DIM", Some("0")),
+                ("TRACE_API_KEY_SECRET", None),
+            ],
+            || {
+                let err = EnvConfig::from_env().unwrap_err();
+                assert!(err.contains("TRACE_QUERY_VECTOR_DIM"));
+            },
+        );
+
+        with_test_env(
+            &[
+                ("TRACE_LANCE_S3_URI", Some("s3://trace-vault/data")),
+                ("TRACE_S3_BUCKET", None),
+                ("TRACE_LANCE_PREFIX", None),
+                ("TRACE_MAX_PAYLOAD_BYTES", None),
+                ("TRACE_QUERY_VECTOR_DIM", Some("10000")),
+                ("TRACE_API_KEY_SECRET", None),
+            ],
+            || {
+                let err = EnvConfig::from_env().unwrap_err();
+                assert!(err.contains("must be less than 10000"));
+            },
+        );
     }
 }

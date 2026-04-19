@@ -508,6 +508,9 @@ pub async fn run(req: &SearchRequest, deps: &RuntimeDeps<'_>) -> Result<SearchRe
 #[cfg(test)]
 mod tests {
     use super::*;
+    use arrow_array::{Float64Array, TimestampMillisecondArray};
+    use arrow_schema::Schema;
+    use serde_json::json;
 
     fn req(dim: usize, k: Option<u32>) -> SearchRequest {
         SearchRequest {
@@ -578,6 +581,91 @@ mod tests {
         r.sql_filter
             .push_str(&"a".repeat(MAX_SQL_FILTER_CHARS - 3000 + 1));
         assert!(r.validate().is_err());
+    }
+
+    #[test]
+    fn sql_filter_exact_char_limit_is_allowed() {
+        let mut r = req(DEFAULT_QUERY_VECTOR_DIM, None);
+        r.sql_filter = "a".repeat(MAX_SQL_FILTER_CHARS);
+        assert_eq!(r.validate().unwrap(), default_k());
+    }
+
+    #[test]
+    fn resolve_projection_rejects_empty_columns() {
+        let mut r = req(DEFAULT_QUERY_VECTOR_DIM, None);
+        r.columns = Some(vec![]);
+        let err = resolve_projection(&r).unwrap_err();
+        match err {
+            KernelError::InvalidColumn(msg) => assert!(msg.contains("must not be empty")),
+            other => panic!("expected invalid column error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn resolve_projection_rejects_unknown_column() {
+        let mut r = req(DEFAULT_QUERY_VECTOR_DIM, None);
+        r.columns = Some(vec!["unknown".to_string()]);
+        let err = resolve_projection(&r).unwrap_err();
+        match err {
+            KernelError::InvalidColumn(msg) => assert!(msg.contains("unknown")),
+            other => panic!("expected invalid column error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn resolve_projection_rejects_text_without_include_text() {
+        let mut r = req(DEFAULT_QUERY_VECTOR_DIM, None);
+        r.columns = Some(vec!["text_content".to_string()]);
+        let err = resolve_projection(&r).unwrap_err();
+        match err {
+            KernelError::InvalidColumn(msg) => assert!(msg.contains("include_text is false")),
+            other => panic!("expected invalid column error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn resolve_projection_auto_adds_text_content_when_include_text_true() {
+        let mut r = req(DEFAULT_QUERY_VECTOR_DIM, None);
+        r.include_text = true;
+        let proj = resolve_projection(&r).unwrap();
+        assert!(proj.iter().any(|c| c == "text_content"));
+        assert!(proj.iter().any(|c| c == "_distance"));
+    }
+
+    #[test]
+    fn record_batch_row_to_object_renames_distance_and_formats_timestamp() {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("incident_id", DataType::Utf8, true),
+            Field::new("_distance", DataType::Float64, false),
+            Field::new(
+                "timestamp",
+                DataType::Timestamp(TimeUnit::Millisecond, None),
+                true,
+            ),
+        ]));
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(StringArray::from(vec![None::<&str>])),
+                Arc::new(Float64Array::from(vec![0.25])),
+                Arc::new(TimestampMillisecondArray::from(vec![Some(
+                    1_700_000_000_000i64,
+                )])),
+            ],
+        )
+        .unwrap();
+
+        let row = record_batch_row_to_object(&batch, 0).unwrap();
+        assert_eq!(row["incident_id"], Value::Null);
+        assert_eq!(row["score"], json!(0.25));
+        assert_eq!(
+            row["timestamp"],
+            Value::String(
+                chrono::DateTime::<chrono::Utc>::from_timestamp_millis(1_700_000_000_000)
+                    .unwrap()
+                    .to_rfc3339()
+            )
+        );
     }
 
     #[test]
