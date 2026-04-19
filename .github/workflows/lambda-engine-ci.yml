@@ -55,6 +55,11 @@ jobs:
       - name: Install SAM CLI
         uses: aws-actions/setup-sam@v2
 
+      - name: Install Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
+
       - name: Cache cargo-lambda binary
         id: cache-cargo-lambda
         uses: actions/cache@v4

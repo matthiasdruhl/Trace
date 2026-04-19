@@ -31,14 +31,10 @@ Parameters:
 Conditions:
   HasTraceApiKeySecret: !Not [!Equals [!Ref TraceApiKeySecretRef, '']]
   TraceApiKeySecretHasJsonKey: !Not [!Equals [!Ref TraceApiKeySecretJsonKey, '']]
-  # Avoid Split on an empty Ref (IAM-only); only inspect when HasTraceApiKeySecret is true.
+  # Empty refs split to a first segment of '', so this remains false in IAM-only mode without
+  # requiring an Fn::If inside Fn::Equals (which cfn-lint rejects here).
   TraceApiKeySecretIsArn:
-    !Equals
-      - !If
-        - HasTraceApiKeySecret
-        - !Select [0, !Split [':', !Ref TraceApiKeySecretRef]]
-        - 'notarn'
-      - 'arn'
+    !Equals [!Select [0, !Split [':', !Ref TraceApiKeySecretRef]], 'arn']
 
 Globals:
   Function:
