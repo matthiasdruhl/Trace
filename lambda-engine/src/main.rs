@@ -5,7 +5,7 @@ use serde_json::Value;
 use tracing_subscriber::EnvFilter;
 
 use lambda_engine::auth::enforce_http_api_key_if_configured;
-use lambda_engine::config::{self, EnvConfig, set_runtime_config};
+use lambda_engine::config::{self, set_runtime_config, EnvConfig};
 use lambda_engine::error::{sanitize_for_log, ApiError};
 use lambda_engine::http::{
     apigw_api_error_response, apigw_json_response, invocation_context, parse_json_request_body,
@@ -13,10 +13,7 @@ use lambda_engine::http::{
 };
 use lambda_engine::search::{run as run_search_kernel, RuntimeDeps, SearchRequest};
 
-fn respond_success(
-    ctx: &InvocationContext,
-    body: Value,
-) -> Result<Value, Error> {
+fn respond_success(ctx: &InvocationContext, body: Value) -> Result<Value, Error> {
     if ctx.is_http_api {
         apigw_json_response(200, body).map_err(|e| Error::from(e.to_string()))
     } else {
