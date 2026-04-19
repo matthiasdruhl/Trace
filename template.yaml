@@ -1,0 +1,140 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Trace — serverless search Lambda (ARM64) over S3-backed Lance + HTTP API
+
+# TraceApiKeySecretRef empty → IAM-only (TRACE_API_KEY_SECRET ''). Non-empty → CFN resolves the secret at deploy
+# and injects the value into Lambda env (Rust unchanged). Use a Secrets Manager JSON key or leave JsonKey blank for plaintext.
+
+Parameters:
+  TraceDataBucketName:
+    Type: String
+    Default: trace-vault
+    Description: S3 bucket that holds the Lance dataset tree (see scripts/seed.py --bucket / --s3-prefix).
+  TraceLancePrefix:
+    Type: String
+    Default: uber_audit.lance
+    Description: Key prefix for the dataset root inside the bucket (no leading slash).
+  TraceApiKeySecretRef:
+    Type: String
+    Default: ''
+    Description: >
+      Secrets Manager secret name, partial name, or full ARN. Leave empty for IAM-only mode (no x-trace-api-key check).
+      If set, CloudFormation resolves the value at deploy time via a dynamic reference (no raw key in the template).
+      For IAM least-privilege, prefer the full secret ARN (see GetSecretValue policy).
+  TraceApiKeySecretJsonKey:
+    Type: String
+    Default: ''
+    Description: >
+      If the secret stores JSON, set this to the field name (e.g. traceApiKey). Leave empty to inject the entire
+      SecretString (plaintext secret or single string body).
+
+Conditions:
+  HasTraceApiKeySecret: !Not [!Equals [!Ref TraceApiKeySecretRef, '']]
+  TraceApiKeySecretHasJsonKey: !Not [!Equals [!Ref TraceApiKeySecretJsonKey, '']]
+  # Avoid Split on an empty Ref (IAM-only); only inspect when HasTraceApiKeySecret is true.
+  TraceApiKeySecretIsArn:
+    !Equals
+      - !If
+        - HasTraceApiKeySecret
+        - !Select [0, !Split [':', !Ref TraceApiKeySecretRef]]
+        - 'notarn'
+      - 'arn'
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 512
+    Architectures:
+      - arm64
+    Tracing: Active
+  HttpApi:
+    CorsConfiguration:
+      AllowMethods:
+        - POST
+        - OPTIONS
+      AllowHeaders:
+        - Content-Type
+        - X-TRACE-API-KEY
+      AllowOrigins:
+        - '*'
+
+Resources:
+  TraceSearchFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: cargo-lambda
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-trace-search'
+      CodeUri: lambda-engine
+      Handler: bootstrap
+      Runtime: provided.al2023
+      Environment:
+        Variables:
+          TRACE_S3_BUCKET: !Ref TraceDataBucketName
+          TRACE_LANCE_PREFIX: !Ref TraceLancePrefix
+          TRACE_LANCE_S3_URI: !Sub 's3://${TraceDataBucketName}/${TraceLancePrefix}'
+          TRACE_API_KEY_SECRET: !If
+            - HasTraceApiKeySecret
+            - !If
+              - TraceApiKeySecretHasJsonKey
+              - !Sub
+                  - '{{{{resolve:secretsmanager:${SecretRef}:SecretString:${JsonKey}}}}}'
+                  - SecretRef: !Ref TraceApiKeySecretRef
+                    JsonKey: !Ref TraceApiKeySecretJsonKey
+              - !Sub
+                  - '{{{{resolve:secretsmanager:${SecretRef}:SecretString}}}}'
+                  - SecretRef: !Ref TraceApiKeySecretRef
+            - ''
+      Policies:
+        # CloudWatch Logs (stdout/stderr); required alongside custom policies
+        - AWSLambdaBasicExecutionRole
+        # X-Ray segment upload; pairs with Globals.Function.Tracing: Active
+        - AWSXRayDaemonWriteAccess
+        - Version: '2012-10-17'
+          Statement:
+            - Sid: ReadSeededLancePrefix
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:GetObjectVersion
+              Resource: !Sub 'arn:aws:s3:::${TraceDataBucketName}/${TraceLancePrefix}/*'
+            - Sid: ListBucketForPrefix
+              Effect: Allow
+              Action:
+                - s3:ListBucket
+              Resource: !Sub 'arn:aws:s3:::${TraceDataBucketName}'
+              Condition:
+                StringLike:
+                  s3:prefix:
+                    - !Sub '${TraceLancePrefix}/*'
+                    - !Ref TraceLancePrefix
+        - !If
+          - HasTraceApiKeySecret
+          - Version: '2012-10-17'
+            Statement:
+              - Sid: GetTraceApiKeySecretValue
+                Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !If
+                  - TraceApiKeySecretIsArn
+                  - !Ref TraceApiKeySecretRef
+                  - !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${TraceApiKeySecretRef}*'
+          - !Ref AWS::NoValue
+      Events:
+        SearchPost:
+          Type: HttpApi
+          Properties:
+            Path: /search
+            Method: POST
+
+Outputs:
+  HttpApiUrl:
+    Description: Base URL for the HTTP API (POST /search)
+    Value: !Sub 'https://${ServerlessHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}'
+  SearchUrl:
+    Description: Full URL for search invocations
+    Value: !Sub 'https://${ServerlessHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/search'
+  TraceSearchFunctionArn:
+    Description: Lambda function ARN
+    Value: !GetAtt TraceSearchFunction.Arn

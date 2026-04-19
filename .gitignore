@@ -1,0 +1,26 @@
+# Local Lance trees (seed output)
+lance_seed/
+_smoke_lance_seed/
+
+# Rust
+lambda-engine/target/
+**/target/
+
+# Python
+.venv/
+.venv-*/
+__pycache__/
+*.pyc
+
+# Node (MCP bridge)
+mcp-bridge/node_modules/
+mcp-bridge/dist/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Env secrets.env
+.env.*

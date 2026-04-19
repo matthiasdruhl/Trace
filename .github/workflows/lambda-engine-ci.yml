@@ -1,0 +1,75 @@
+name: lambda-engine CI
+
+on:
+  push:
+    paths:
+      - 'lambda-engine/**'
+      - 'template.yaml'
+      - 'samconfig.toml'
+      - '.github/workflows/lambda-engine-ci.yml'
+  pull_request:
+    paths:
+      - 'lambda-engine/**'
+      - 'template.yaml'
+      - 'samconfig.toml'
+      - '.github/workflows/lambda-engine-ci.yml'
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: lambda-engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+      - name: cargo clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: cargo test
+        run: cargo test
+
+  # Validates SAM template + reproduces the ARM64/cargo-lambda artifact path (same as deploy).
+  package:
+    needs: rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-gnu
+
+      - name: Rust cache (lambda-engine)
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: lambda-engine
+
+      - name: Install SAM CLI
+        uses: aws-actions/setup-sam@v2
+
+      - name: Cache cargo-lambda binary
+        id: cache-cargo-lambda
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-lambda
+          key: cargo-lambda-bin-${{ runner.os }}-x86_64-v1
+
+      - name: Install cargo-lambda
+        if: steps.cache-cargo-lambda.outputs.cache-hit != 'true'
+        run: curl -fsSL https://cargo-lambda.info/install.sh | sh
+
+      # Helps native/link dependencies when cross-compiling to aarch64 on the x86_64 runner.
+      - name: Install aarch64 GNU linker (cross)
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: SAM validate (--lint)
+        run: sam validate --lint
+
+      # Heavy path: only on PRs or default branch so feature-branch pushes stay lighter.
+      - name: SAM build (ARM64 / provided.al2023 via cargo-lambda)
+        if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_name == 'main')
+        run: sam build

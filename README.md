@@ -50,3 +50,15 @@ Enterprises sit on petabytes of "Dark Data"—unstructured logs, legal depositio
 Indexed links for the core crates (**Lance**, **DuckDB**, **AWS SDK for S3**) used by the search engine are in [`docs/RUST_CRATE_DOCS.md`](docs/RUST_CRATE_DOCS.md).
 
 ---
+
+## Python: synthetic data seed (`scripts/seed.py`)
+
+Install dependencies with the **transitive lock** so every sub-dependency matches CI and other machines:
+
+```bash
+pip install -r scripts/requirements.txt -c scripts/constraints.txt
+```
+
+Direct dependencies are listed in `scripts/requirements.txt`; exact versions of all transitive packages are pinned in `scripts/constraints.txt`. Regenerate the lock after changing bounds in `requirements.txt` (use a clean virtual environment, `pip install -r scripts/requirements.txt`, then `pip freeze` into `scripts/constraints.txt` and restore the first-line comment in that file).
+
+---
