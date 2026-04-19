@@ -1,7 +1,6 @@
 //! Lance-first ANN search: IVF-PQ on column `vector` (L2), optional `text_content`.
 
-use std::error::Error;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use arrow_array::{
     Array, ArrayRef, FixedSizeListArray, Float32Array, Float64Array, Int32Array, Int64Array,
@@ -115,6 +114,8 @@ enum KernelError {
     DatasetNotAvailable,
     /// Object storage denied access (permissions / 403-class).
     S3AccessDenied,
+    /// Internal projection / conversion failures that are safe to log but not return to clients.
+    Lance { detail: String },
     /// Other Lance execution / IO failures (no raw backend message retained).
     LanceExecution,
 }
@@ -216,6 +217,9 @@ fn kernel_err_to_api(e: KernelError) -> ApiError {
             ApiError::internal_categorized("dataset_not_available", "")
         }
         KernelError::S3AccessDenied => ApiError::internal_categorized("s3_access_denied", ""),
+        KernelError::Lance { detail } => {
+            ApiError::internal_categorized("lance_execution_error", detail)
+        }
         KernelError::LanceExecution => ApiError::internal_categorized("lance_execution_error", ""),
     }
 }
