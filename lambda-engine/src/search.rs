@@ -236,10 +236,19 @@ fn kernel_err_to_api(e: KernelError) -> ApiError {
 
 /// Canonical Lance URI for this runtime (first successful `run` wins).
 static LANCE_CANONICAL_URI: OnceLock<String> = OnceLock::new();
-static LANCE_DATASET: OnceCell<Result<Arc<lance::Dataset>, KernelError>> = OnceCell::const_new();
+static LANCE_DATASET: OnceCell<Arc<lance::Dataset>> = OnceCell::const_new();
 
-async fn get_or_open_dataset(lance_uri: &str) -> Result<&'static Arc<lance::Dataset>, ApiError> {
-    let canonical = LANCE_CANONICAL_URI.get_or_init(|| lance_uri.to_string());
+async fn get_or_open_dataset_with<'a, Open, Fut>(
+    lance_uri: &str,
+    canonical_uri: &'a OnceLock<String>,
+    dataset_cell: &'a OnceCell<Arc<lance::Dataset>>,
+    open_dataset: Open,
+) -> Result<&'a Arc<lance::Dataset>, ApiError>
+where
+    Open: FnOnce(String) -> Fut,
+    Fut: std::future::Future<Output = Result<Arc<lance::Dataset>, KernelError>>,
+{
+    let canonical = canonical_uri.get_or_init(|| lance_uri.to_string());
     if canonical.as_str() != lance_uri {
         return Err(ApiError::internal_categorized(
             "lance_uri_mismatch",
@@ -247,18 +256,25 @@ async fn get_or_open_dataset(lance_uri: &str) -> Result<&'static Arc<lance::Data
         ));
     }
     let uri = canonical.clone();
-    let res = LANCE_DATASET
-        .get_or_init(|| async move {
+    dataset_cell
+        .get_or_try_init(|| open_dataset(uri))
+        .await
+        .map_err(kernel_err_to_api)
+}
+
+async fn get_or_open_dataset(lance_uri: &str) -> Result<&'static Arc<lance::Dataset>, ApiError> {
+    get_or_open_dataset_with(
+        lance_uri,
+        &LANCE_CANONICAL_URI,
+        &LANCE_DATASET,
+        |uri| async move {
             lance::Dataset::open(uri.as_str())
                 .await
                 .map(Arc::new)
                 .map_err(map_lance_err)
-        })
-        .await;
-    match res {
-        Ok(ds) => Ok(ds),
-        Err(ke) => Err(kernel_err_to_api(ke.clone())),
-    }
+        },
+    )
+    .await
 }
 
 fn resolve_projection(req: &SearchRequest) -> Result<Vec<String>, KernelError> {
@@ -532,6 +548,7 @@ mod tests {
     use lance::dataset::WriteParams;
     use lance::Dataset;
     use serde_json::json;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
     use tempfile::tempdir;
 
@@ -1029,6 +1046,108 @@ mod tests {
         .unwrap();
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0]["incident_id"], json!("oq"));
+    }
+
+    #[tokio::test]
+    async fn dataset_open_failures_are_not_cached() {
+        let tmp = tempdir().unwrap();
+        let uri = tmp.path().to_str().unwrap().to_string();
+        let dataset = Arc::new(write_filter_fixture_dataset(uri.as_str()).await);
+        let canonical_uri = OnceLock::new();
+        let dataset_cell = OnceCell::new();
+        let open_attempts = Arc::new(AtomicUsize::new(0));
+
+        let err = get_or_open_dataset_with(uri.as_str(), &canonical_uri, &dataset_cell, {
+            let dataset = Arc::clone(&dataset);
+            let open_attempts = Arc::clone(&open_attempts);
+            move |_opened_uri| {
+                let dataset = Arc::clone(&dataset);
+                let open_attempts = Arc::clone(&open_attempts);
+                async move {
+                    let attempt = open_attempts.fetch_add(1, Ordering::SeqCst);
+                    if attempt == 0 {
+                        Err(KernelError::LanceExecution)
+                    } else {
+                        Ok(dataset)
+                    }
+                }
+            }
+        })
+        .await
+        .unwrap_err();
+        assert_eq!(err.status, 500);
+        assert_eq!(err.code, "INTERNAL");
+        assert_eq!(open_attempts.load(Ordering::SeqCst), 1);
+
+        let reopened = get_or_open_dataset_with(uri.as_str(), &canonical_uri, &dataset_cell, {
+            let dataset = Arc::clone(&dataset);
+            let open_attempts = Arc::clone(&open_attempts);
+            move |_opened_uri| {
+                let dataset = Arc::clone(&dataset);
+                let open_attempts = Arc::clone(&open_attempts);
+                async move {
+                    open_attempts.fetch_add(1, Ordering::SeqCst);
+                    Ok(dataset)
+                }
+            }
+        })
+        .await
+        .unwrap();
+        assert!(Arc::ptr_eq(reopened, &dataset));
+        assert_eq!(open_attempts.load(Ordering::SeqCst), 2);
+
+        let cached = get_or_open_dataset_with(
+            uri.as_str(),
+            &canonical_uri,
+            &dataset_cell,
+            |_opened_uri| async move {
+                panic!("cached dataset should be reused without reopening");
+            },
+        )
+        .await
+        .unwrap();
+        assert!(Arc::ptr_eq(cached, &dataset));
+        assert_eq!(open_attempts.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn dataset_open_preserves_canonical_uri_guard() {
+        let tmp = tempdir().unwrap();
+        let uri = tmp.path().to_str().unwrap().to_string();
+        let dataset = Arc::new(write_filter_fixture_dataset(uri.as_str()).await);
+        let canonical_uri = OnceLock::new();
+        let dataset_cell = OnceCell::new();
+        let open_attempts = Arc::new(AtomicUsize::new(0));
+
+        let opened = get_or_open_dataset_with(uri.as_str(), &canonical_uri, &dataset_cell, {
+            let dataset = Arc::clone(&dataset);
+            let open_attempts = Arc::clone(&open_attempts);
+            move |_opened_uri| {
+                let dataset = Arc::clone(&dataset);
+                let open_attempts = Arc::clone(&open_attempts);
+                async move {
+                    open_attempts.fetch_add(1, Ordering::SeqCst);
+                    Ok(dataset)
+                }
+            }
+        })
+        .await
+        .unwrap();
+        assert!(Arc::ptr_eq(opened, &dataset));
+
+        let err = get_or_open_dataset_with(
+            "file:///different-dataset",
+            &canonical_uri,
+            &dataset_cell,
+            |_opened_uri| async move {
+                panic!("canonical URI mismatch should fail before opening");
+            },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.status, 500);
+        assert_eq!(err.code, "INTERNAL");
+        assert_eq!(open_attempts.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test]
