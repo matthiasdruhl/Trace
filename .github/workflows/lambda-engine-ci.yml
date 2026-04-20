@@ -47,6 +47,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+      - name: Rust cache (lambda-engine)
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: lambda-engine
       - name: cargo fmt --check
         run: cargo fmt --all -- --check
       - name: cargo clippy
@@ -56,6 +60,7 @@ jobs:
 
   # Validates SAM template + reproduces the ARM64/cargo-lambda artifact path (same as deploy).
   package:
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     needs: rust
     runs-on: ubuntu-latest
     steps:
