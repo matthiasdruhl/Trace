@@ -1,0 +1,24 @@
+# Auto-generated transitive dependency lock for reproducibility.
+annotated-types==0.7.0
+boto3==1.42.91
+botocore==1.42.91
+colorama==0.4.6
+deprecation==2.1.0
+jmespath==1.1.0
+lance-namespace==0.6.1
+lance-namespace-urllib3-client==0.6.1
+lancedb==0.30.2
+numpy==2.4.4
+packaging==26.1
+pandas==3.0.2
+pyarrow==23.0.1
+pydantic==2.13.2
+pydantic_core==2.46.2
+python-dateutil==2.9.0.post0
+s3transfer==0.16.0
+six==1.17.0
+tqdm==4.67.3
+typing-inspection==0.4.2
+typing_extensions==4.15.0
+tzdata==2026.1
+urllib3==2.6.3

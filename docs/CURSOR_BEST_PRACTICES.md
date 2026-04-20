@@ -5,13 +5,13 @@
 Cursor is only as smart as the context you provide. In a high-stakes sprint, manage your context window to avoid hallucination.
 * **@Files:** Always explicitly reference `@CURSOR_PROMPT.md` or `@DATA_SPEC.md` when starting a new task.
 * **@Codebase:** Use sparingly. Only use this when you need the AI to understand cross-file dependencies (e.g., "How does my MCP server call my Rust Lambda?").
-* **@Docs:** Add the documentation for `lance`, `duckdb`, and `aws-sdk-s3` directly. This ensures Cursor doesn't use outdated API methods.
-  
+* **@Docs:** Add the documentation for `lance`, `duckdb`, and `aws-sdk-s3` directly. This ensures Cursor doesn't use outdated API methods. The canonical list lives in [`docs/RUST_CRATE_DOCS.md`](RUST_CRATE_DOCS.md).
+
+Lance (core engine): https://lancedb.github.io/lance/rust/lance/index.html
+
+DuckDB (metadata): https://docs.rs/duckdb/latest/duckdb/
+
 AWS S3 (Rust SDK): https://docs.rs/aws-sdk-s3/latest/aws_sdk_s3/
-
-Lance (Core Engine): https://docs.rs/lance/latest/lance/
-
-DuckDB (Metadata): https://docs.rs/duckdb/latest/duckdb/
 
 ### 2. The Composer Workflow (Cmd+I)
 The **Composer** is your multi-file engine. Use it for high-level scaffolding.

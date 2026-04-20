@@ -44,3 +44,39 @@ Enterprises sit on petabytes of "Dark Data"—unstructured logs, legal depositio
 * **Local-Daemon Sync:** A Rust-based service to bridge local desktop files with cloud archives.
 
 ---
+
+## Rust API documentation
+
+Indexed links for the core crates (**Lance**, **DuckDB**, **AWS SDK for S3**) used by the search engine are in [`docs/RUST_CRATE_DOCS.md`](docs/RUST_CRATE_DOCS.md).
+
+---
+
+## Python: synthetic data seed (`scripts/seed.py`)
+
+Install dependencies with the **transitive lock** so every sub-dependency matches CI and other machines:
+
+```bash
+pip install -r scripts/requirements.txt -c scripts/constraints.txt
+```
+
+Direct dependencies are listed in `scripts/requirements.txt`; exact versions of all transitive packages are pinned in `scripts/constraints.txt`. Regenerate the lock after changing bounds in `requirements.txt` (use a clean virtual environment, `pip install -r scripts/requirements.txt`, then `pip freeze` into `scripts/constraints.txt` and restore the first-line comment in that file).
+
+### Regenerating local Lance datasets
+
+`scripts/seed.py` writes **generated** Lance tables under `./lance_seed/` by default (100k rows; large on disk). Optional paths such as `./_smoke_lance_seed/` are for smaller local or smoke runs. These directories are **gitignored**; they are not part of the source tree—clone the repo and regenerate when you need data.
+
+From the repository root:
+
+```bash
+pip install -r scripts/requirements.txt -c scripts/constraints.txt
+
+# Default: 100k rows → ./lance_seed/ (IVF-PQ index; expect hundreds of MB on disk)
+python scripts/seed.py
+
+# Smaller local dataset (example: 2k rows, separate output directory)
+python scripts/seed.py --rows 2000 --output-dir _smoke_lance_seed --force
+```
+
+Use `--force` when overwriting an existing table in the same directory. Upload to S3 is off by default (`--skip-upload`); see `python scripts/seed.py --help` and `docs/DATA_SPEC.md` for column layout and optional staging or promotion flags.
+
+---

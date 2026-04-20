@@ -1,0 +1,18 @@
+# Primary dependencies for scripts/seed.py (direct packages only).
+# To ensure 100% reproducibility, install using:
+#   pip install -r scripts/requirements.txt -c scripts/constraints.txt
+#
+# After changing version bounds, regenerate scripts/constraints.txt from a clean venv, e.g.:
+#   python -m venv .venv && .venv\Scripts\activate   # Windows; use: source .venv/bin/activate on Unix
+#   pip install -U pip && pip install -r scripts/requirements.txt
+#   pip freeze > scripts/constraints.txt
+# Then restore the first-line comment in constraints.txt (see that file).
+#
+# Data / numerical stack
+pandas>=2.2,<4
+numpy>=1.26,<3
+pyarrow>=15,<25
+# Lance (vector store for seed output)
+lancedb>=0.6,<1
+# AWS (S3 upload path)
+boto3>=1.34,<2
