@@ -3498,6 +3498,7 @@ dependencies = [
  "object_store",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
  "tracing",
  "tracing-subscriber",

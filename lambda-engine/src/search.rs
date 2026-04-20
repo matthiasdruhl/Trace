@@ -3,11 +3,11 @@
 use std::sync::{Arc, OnceLock};
 
 use arrow_array::{
-    Array, ArrayRef, FixedSizeListArray, Float32Array, Float64Array, Int32Array, Int64Array,
-    LargeStringArray, RecordBatch, StringArray, StringViewArray, TimestampMicrosecondArray,
-    TimestampMillisecondArray, TimestampNanosecondArray, TimestampSecondArray,
+    Array, ArrayRef, Float32Array, Float64Array, Int32Array, Int64Array, LargeStringArray,
+    RecordBatch, StringArray, StringViewArray, TimestampMicrosecondArray, TimestampMillisecondArray,
+    TimestampNanosecondArray, TimestampSecondArray,
 };
-use arrow_schema::{DataType, Field, TimeUnit};
+use arrow_schema::{DataType, TimeUnit};
 use aws_sdk_s3::Client as S3Client;
 use futures::TryStreamExt;
 use lance_linalg::distance::MetricType;
@@ -55,7 +55,9 @@ pub struct SearchRequest {
     pub include_text: bool,
     #[serde(default)]
     pub columns: Option<Vec<String>>,
-    /// Optional metadata filter expression (not yet applied to Lance scan).
+    /// Optional `sql_filter` field (historical name). Empty / whitespace-only means no filter.
+    /// Non-empty values must parse as the constrained filter language (see [`crate::filter`]);
+    /// otherwise [`SearchRequest::validate`] returns **400** (`INVALID_SQL_FILTER` / `INVALID_FILTER_VALUE`).
     #[serde(default)]
     pub sql_filter: String,
 }
@@ -71,6 +73,10 @@ impl SearchRequest {
                     "sql_filter must be at most {MAX_SQL_FILTER_CHARS} characters (got {n_chars})"
                 ),
             ));
+        }
+
+        if !self.sql_filter.trim().is_empty() {
+            crate::filter::parse_filter(&self.sql_filter)?;
         }
 
         const MSG: &str = "Invalid limit: must be a positive integer greater than zero.";
@@ -434,6 +440,10 @@ async fn run_vector_search(
     req: &SearchRequest,
     k: usize,
     dim: usize,
+    // Compiler-generated Lance `scan().filter(...)` predicate (`crate::filter::parse_and_compile`), never raw user text.
+    sql_predicate: Option<&str>,
+    // When false, nearest-neighbor runs without a vector index (used by small local test datasets).
+    use_vector_index: bool,
 ) -> Result<Vec<Value>, KernelError> {
     if req.query_vector.len() != dim {
         return Err(KernelError::DimMismatch {
@@ -449,21 +459,19 @@ async fn run_vector_search(
     let projection = resolve_projection(req)?;
     let proj_refs: Vec<&str> = projection.iter().map(|s| s.as_str()).collect();
 
-    let flat = Float32Array::from_iter_values(req.query_vector.iter().copied());
-    let item_field = Arc::new(Field::new("item", DataType::Float32, true));
-    let query =
-        FixedSizeListArray::try_new(item_field, dim as i32, Arc::new(flat), None).map_err(|e| {
-            KernelError::Lance {
-                detail: format!("query vector (FixedSizeList): {e}"),
-            }
-        })?;
+    // Lance 4 `nearest`: pass a flat primitive array for `FixedSizeList` columns; passing
+    // `FixedSizeListArray` is reserved for multivector (`List`) columns.
+    let query = Float32Array::from_iter_values(req.query_vector.iter().copied());
 
-    let mut stream = dataset
-        .scan()
+    let mut scan = dataset.scan();
+    if let Some(pred) = sql_predicate {
+        scan.filter(pred).map_err(map_lance_err)?;
+    }
+    let mut stream = scan
         .nearest("vector", &query, k)
         .map_err(map_lance_err)?
         .distance_metric(MetricType::L2)
-        .use_index(true)
+        .use_index(use_vector_index)
         .disable_scoring_autoprojection()
         .project(&proj_refs)
         .map_err(map_lance_err)?
@@ -490,9 +498,17 @@ pub async fn run(req: &SearchRequest, deps: &RuntimeDeps<'_>) -> Result<SearchRe
     let k = req.validate()?;
     let k_usize = k as usize;
     let start = std::time::Instant::now();
+    let compiled_filter = crate::filter::parse_and_compile(&req.sql_filter)?;
     let dataset = get_or_open_dataset(deps.config.lance_uri.as_str()).await?;
     let dim = deps.config.query_vector_dim;
-    let results = run_vector_search(dataset.as_ref(), req, k_usize, dim)
+    let results = run_vector_search(
+        dataset.as_ref(),
+        req,
+        k_usize,
+        dim,
+        compiled_filter.as_deref(),
+        true,
+    )
         .await
         .map_err(kernel_err_to_api)?;
     Ok(SearchResponse {
@@ -508,9 +524,16 @@ pub async fn run(req: &SearchRequest, deps: &RuntimeDeps<'_>) -> Result<SearchRe
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow_array::{Float64Array, TimestampMillisecondArray};
-    use arrow_schema::Schema;
+    use arrow_array::{
+        FixedSizeListArray, Float32Array, Float64Array, RecordBatch, RecordBatchIterator,
+        StringArray, TimestampMillisecondArray,
+    };
+    use arrow_schema::{DataType, Field, Schema, TimeUnit};
+    use lance::dataset::WriteParams;
+    use lance::Dataset;
     use serde_json::json;
+    use std::sync::Arc;
+    use tempfile::tempdir;
 
     fn req(dim: usize, k: Option<u32>) -> SearchRequest {
         SearchRequest {
@@ -576,17 +599,52 @@ mod tests {
         r.sql_filter = "\u{20AC}".repeat(3000);
         assert!(r.sql_filter.len() > 8192);
         assert_eq!(r.sql_filter.chars().count(), 3000);
-        r.validate().unwrap();
+        let e = r.validate().unwrap_err();
+        assert_eq!(e.code, "INVALID_SQL_FILTER");
 
+        r.sql_filter = "\u{20AC}".repeat(3000);
         r.sql_filter
             .push_str(&"a".repeat(MAX_SQL_FILTER_CHARS - 3000 + 1));
-        assert!(r.validate().is_err());
+        let e = r.validate().unwrap_err();
+        assert_eq!(e.code, "SQL_FILTER_TOO_LONG");
     }
 
     #[test]
-    fn sql_filter_exact_char_limit_is_allowed() {
+    fn sql_filter_exact_char_limit_is_allowed_when_trim_empty() {
         let mut r = req(DEFAULT_QUERY_VECTOR_DIM, None);
-        r.sql_filter = "a".repeat(MAX_SQL_FILTER_CHARS);
+        r.sql_filter = " ".repeat(MAX_SQL_FILTER_CHARS);
+        assert_eq!(r.sql_filter.chars().count(), MAX_SQL_FILTER_CHARS);
+        assert_eq!(r.validate().unwrap(), default_k());
+    }
+
+    #[test]
+    fn validate_accepts_supported_sql_filter() {
+        let mut r = req(DEFAULT_QUERY_VECTOR_DIM, None);
+        r.sql_filter = "city_code = 'NYC-TLC'".to_string();
+        assert_eq!(r.validate().unwrap(), default_k());
+    }
+
+    #[test]
+    fn validate_rejects_malformed_sql_filter() {
+        let mut r = req(DEFAULT_QUERY_VECTOR_DIM, None);
+        r.sql_filter = "city_code = 'NYC-TLC'; DROP TABLE foo;".to_string();
+        let e = r.validate().unwrap_err();
+        assert_eq!(e.code, "INVALID_SQL_FILTER");
+    }
+
+    #[test]
+    fn validate_rejects_empty_in_list() {
+        let mut r = req(DEFAULT_QUERY_VECTOR_DIM, None);
+        r.sql_filter = "city_code IN ()".to_string();
+        let e = r.validate().unwrap_err();
+        assert_eq!(e.status, 400);
+        assert_eq!(e.code, "INVALID_SQL_FILTER");
+    }
+
+    #[test]
+    fn validate_accepts_whitespace_only_sql_filter() {
+        let mut r = req(DEFAULT_QUERY_VECTOR_DIM, None);
+        r.sql_filter = "  \n\t  ".to_string();
         assert_eq!(r.validate().unwrap(), default_k());
     }
 
@@ -699,5 +757,329 @@ mod tests {
         };
         let v = serde_json::to_value(&r).unwrap();
         assert_eq!(v["stub"], "placeholder");
+    }
+
+    /// Small vector width for local Lance fixtures (production uses [`DEFAULT_QUERY_VECTOR_DIM`]).
+    const FILTER_FIXTURE_DIM: usize = 8;
+
+    fn millis_rfc3339(s: &str) -> i64 {
+        chrono::DateTime::parse_from_rfc3339(s)
+            .unwrap()
+            .timestamp_millis()
+    }
+
+    async fn write_filter_fixture_dataset(uri: &str) -> Dataset {
+        let dim = FILTER_FIXTURE_DIM as i32;
+        let item = Arc::new(Field::new("item", DataType::Float32, true));
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("incident_id", DataType::Utf8, false),
+            Field::new(
+                "timestamp",
+                DataType::Timestamp(TimeUnit::Millisecond, None),
+                false,
+            ),
+            Field::new("city_code", DataType::Utf8, false),
+            Field::new("doc_type", DataType::Utf8, false),
+            Field::new(
+                "vector",
+                DataType::FixedSizeList(item.clone(), dim),
+                false,
+            ),
+        ]));
+
+        let v_nyc_a: Vec<f32> = vec![1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+        let v_sf: Vec<f32> = vec![0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+        let v_nyc_b: Vec<f32> = vec![0.9, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+        let v_unicode: Vec<f32> = vec![0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+
+        let flat: Vec<f32> = v_nyc_a
+            .iter()
+            .chain(v_sf.iter())
+            .chain(v_nyc_b.iter())
+            .chain(v_unicode.iter())
+            .copied()
+            .collect();
+        let vec_field = Arc::new(Field::new("item", DataType::Float32, true));
+        let vectors = FixedSizeListArray::try_new(
+            vec_field,
+            dim,
+            Arc::new(Float32Array::from(flat)),
+            None,
+        )
+        .unwrap();
+
+        let batch = RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                Arc::new(StringArray::from(vec![
+                    "inc-1", "inc-2", "inc-3", "inc-4",
+                ])),
+                Arc::new(TimestampMillisecondArray::from(vec![
+                    millis_rfc3339("2025-06-01T12:00:00Z"),
+                    millis_rfc3339("2025-06-15T12:00:00Z"),
+                    millis_rfc3339("2025-07-01T12:00:00Z"),
+                    millis_rfc3339("2025-08-01T12:00:00Z"),
+                ])),
+                Arc::new(StringArray::from(vec![
+                    "NYC-TLC",
+                    "SF-CPUC",
+                    "NYC-TLC",
+                    "NYC-TLC",
+                ])),
+                Arc::new(StringArray::from(vec![
+                    "Insurance_Lapse_Report",
+                    "Safety_Incident_Log",
+                    "Safety_Incident_Log",
+                    "报告",
+                ])),
+                Arc::new(vectors),
+            ],
+        )
+        .unwrap();
+
+        let reader = RecordBatchIterator::new(vec![Ok(batch)], schema);
+        Dataset::write(reader, uri, Some(WriteParams::default()))
+            .await
+            .unwrap()
+    }
+
+    fn incident_set(results: &[Value]) -> std::collections::HashSet<String> {
+        results
+            .iter()
+            .map(|r| r["incident_id"].as_str().unwrap().to_string())
+            .collect()
+    }
+
+    async fn search_fixture(
+        dataset: &Dataset,
+        query: Vec<f32>,
+        k: u32,
+        sql_filter: &str,
+    ) -> Result<Vec<Value>, ApiError> {
+        let req = SearchRequest {
+            query_vector: query,
+            k: Some(k),
+            include_text: false,
+            columns: None,
+            sql_filter: sql_filter.to_string(),
+        };
+        let k = req.validate()? as usize;
+        let compiled = crate::filter::parse_and_compile(&req.sql_filter)?;
+        run_vector_search(
+            dataset,
+            &req,
+            k,
+            FILTER_FIXTURE_DIM,
+            compiled.as_deref(),
+            false,
+        )
+        .await
+        .map_err(kernel_err_to_api)
+    }
+
+    #[tokio::test]
+    async fn filter_narrows_lance_scan_before_nearest() {
+        let tmp = tempdir().unwrap();
+        let uri = tmp.path().to_str().unwrap();
+        let ds = write_filter_fixture_dataset(uri).await;
+
+        let query: Vec<f32> = vec![1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+        let all = search_fixture(&ds, query.clone(), 10, "")
+            .await
+            .unwrap();
+        let nyc = search_fixture(&ds, query.clone(), 10, "city_code = 'NYC-TLC'")
+            .await
+            .unwrap();
+        let in_types = search_fixture(
+            &ds,
+            query.clone(),
+            10,
+            "doc_type IN ('Insurance_Lapse_Report', '报告')",
+        )
+        .await
+        .unwrap();
+        let july = search_fixture(
+            &ds,
+            query,
+            10,
+            "timestamp >= '2025-07-01T00:00:00Z' AND timestamp < '2025-09-01T00:00:00Z'",
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            all.len() >= 3,
+            "unfiltered search should return multiple candidates"
+        );
+        let all_ids = incident_set(&all);
+        assert!(all_ids.contains("inc-1"));
+        assert!(all_ids.contains("inc-2"));
+
+        assert_eq!(incident_set(&nyc), ["inc-1", "inc-3", "inc-4"].into_iter().map(String::from).collect());
+        assert_eq!(
+            incident_set(&in_types),
+            ["inc-1", "inc-4"].into_iter().map(String::from).collect()
+        );
+        assert_eq!(
+            incident_set(&july),
+            ["inc-3", "inc-4"].into_iter().map(String::from).collect()
+        );
+    }
+
+    #[tokio::test]
+    async fn omitting_scan_filter_includes_excluded_rows_regression_guard() {
+        let tmp = tempdir().unwrap();
+        let uri = tmp.path().to_str().unwrap();
+        let ds = write_filter_fixture_dataset(uri).await;
+
+        let req = SearchRequest {
+            query_vector: vec![1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            k: Some(10),
+            include_text: false,
+            columns: None,
+            sql_filter: "city_code = 'SF-CPUC'".to_string(),
+        };
+        let k = req.validate().unwrap() as usize;
+        let pred = crate::filter::parse_and_compile(&req.sql_filter)
+            .unwrap()
+            .unwrap();
+
+        let with_filter = run_vector_search(&ds, &req, k, FILTER_FIXTURE_DIM, Some(&pred), false)
+            .await
+            .unwrap();
+        let without = run_vector_search(&ds, &req, k, FILTER_FIXTURE_DIM, None, false)
+            .await
+            .unwrap();
+
+        assert_eq!(incident_set(&with_filter), ["inc-2"].into_iter().map(String::from).collect());
+        assert!(incident_set(&without).contains("inc-1"));
+        assert!(incident_set(&without).len() > with_filter.len());
+    }
+
+    #[tokio::test]
+    async fn invalid_filter_request_path_returns_400() {
+        let tmp = tempdir().unwrap();
+        let uri = tmp.path().to_str().unwrap();
+        let ds = write_filter_fixture_dataset(uri).await;
+
+        let err = search_fixture(
+            &ds,
+            vec![1.0; FILTER_FIXTURE_DIM],
+            5,
+            "city_code IN ()",
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.status, 400);
+        assert_eq!(err.code, "INVALID_SQL_FILTER");
+    }
+
+    #[tokio::test]
+    async fn filter_unicode_literal_end_to_end() {
+        let tmp = tempdir().unwrap();
+        let uri = tmp.path().to_str().unwrap();
+        let ds = write_filter_fixture_dataset(uri).await;
+
+        let hits = search_fixture(
+            &ds,
+            vec![0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            5,
+            "doc_type = '报告'",
+        )
+        .await
+        .unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0]["incident_id"], json!("inc-4"));
+    }
+
+    #[tokio::test]
+    async fn filter_escaped_quote_literal_end_to_end() {
+        let tmp = tempdir().unwrap();
+        let uri = tmp.path().to_str().unwrap();
+        let dim = FILTER_FIXTURE_DIM as i32;
+        let item = Arc::new(Field::new("item", DataType::Float32, true));
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("incident_id", DataType::Utf8, false),
+            Field::new(
+                "timestamp",
+                DataType::Timestamp(TimeUnit::Millisecond, None),
+                false,
+            ),
+            Field::new("city_code", DataType::Utf8, false),
+            Field::new("doc_type", DataType::Utf8, false),
+            Field::new(
+                "vector",
+                DataType::FixedSizeList(item.clone(), dim),
+                false,
+            ),
+        ]));
+        let v: Vec<f32> = vec![1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+        let vec_col = FixedSizeListArray::try_new(
+            item,
+            dim,
+            Arc::new(Float32Array::from(v)),
+            None,
+        )
+        .unwrap();
+        let batch = RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                Arc::new(StringArray::from(vec!["oq"])),
+                Arc::new(TimestampMillisecondArray::from(vec![millis_rfc3339(
+                    "2025-01-01T00:00:00Z",
+                )])),
+                Arc::new(StringArray::from(vec!["O'Reilly-TLC"])),
+                Arc::new(StringArray::from(vec!["Insurance_Lapse_Report"])),
+                Arc::new(vec_col),
+            ],
+        )
+        .unwrap();
+        let reader = RecordBatchIterator::new(vec![Ok(batch)], schema);
+        let ds = Dataset::write(reader, uri, Some(WriteParams::default()))
+            .await
+            .unwrap();
+
+        let hits = search_fixture(
+            &ds,
+            vec![1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            5,
+            "city_code = 'O''Reilly-TLC'",
+        )
+        .await
+        .unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0]["incident_id"], json!("oq"));
+    }
+
+    #[tokio::test]
+    async fn filter_not_nested_excludes_match() {
+        let tmp = tempdir().unwrap();
+        let uri = tmp.path().to_str().unwrap();
+        let ds = write_filter_fixture_dataset(uri).await;
+
+        let hits = search_fixture(
+            &ds,
+            vec![1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            10,
+            "city_code = 'NYC-TLC' AND NOT doc_type = 'Insurance_Lapse_Report'",
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            incident_set(&hits),
+            ["inc-3", "inc-4"].into_iter().map(String::from).collect()
+        );
+    }
+
+    #[test]
+    fn filter_keyword_boundary_and_is_not_suffix_of_ident() {
+        let err = crate::filter::parse_filter("city_codeAND = 'X'").unwrap_err();
+        assert_eq!(err.code, "INVALID_SQL_FILTER");
+    }
+
+    #[test]
+    fn filter_keyword_boundary_not_prefix_of_ident() {
+        let e = crate::filter::parse_filter("NOTcity_code = 'X'").unwrap_err();
+        assert_eq!(e.code, "INVALID_SQL_FILTER");
     }
 }

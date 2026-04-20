@@ -4,17 +4,37 @@ on:
   push:
     paths:
       - 'lambda-engine/**'
+      - 'mcp-bridge/**'
       - 'template.yaml'
       - 'samconfig.toml'
       - '.github/workflows/lambda-engine-ci.yml'
   pull_request:
     paths:
       - 'lambda-engine/**'
+      - 'mcp-bridge/**'
       - 'template.yaml'
       - 'samconfig.toml'
       - '.github/workflows/lambda-engine-ci.yml'
 
 jobs:
+  mcp-bridge:
+    name: MCP bridge (Node)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcp-bridge
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: mcp-bridge/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck & build
+        run: npm run build
+
   rust:
     runs-on: ubuntu-latest
     defaults:

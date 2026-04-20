@@ -1,6 +1,6 @@
-# Local Lance trees (seed output)
-lance_seed/
-_smoke_lance_seed/
+# Lance synthetic seed output from scripts/seed.py (generated; never commit)
+/lance_seed/
+/_smoke_lance_seed/
 
 # Rust
 lambda-engine/target/

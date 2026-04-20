@@ -1,64 +1,95 @@
-# Cold-Storage Semantic Search Engine
+# Trace
 
-### **Enterprise Intelligence at S3 Prices**
+Trace is an AWS-first semantic search system for archived data stored in Lance format on S3. The current repository contains:
 
-The **Cold-Storage Semantic Search Engine** is a high-performance, cloud-native infrastructure tool designed to solve the "Digital Hoarding" crisis. It allows enterprises to perform natural language, semantic searches across massive, "cold" data archives (S3/Object Storage) without the $1,000+/month price tag of traditional "always-on" vector databases.
+- a Rust Lambda search engine in `lambda-engine/`
+- a Node/TypeScript MCP bridge in `mcp-bridge/`
+- a Python seeding pipeline in `scripts/`
+- an AWS SAM template in `template.yaml`
 
----
+The current implementation supports Lance-backed nearest-neighbor search, constrained metadata filtering, API key or IAM-only HTTP access, and an MCP bridge that embeds natural-language queries before calling the search API.
 
-## 🚀 The Core Ideas
+## Repository layout
 
-### **1. "Zero-Idle" Infrastructure**
-Traditional vector databases (Pinecone, Weaviate) are "always-on," charging for compute even when no one is searching. This project utilizes a **Serverless-First** approach where the engine only "wakes up" via AWS Lambda to handle a query, resulting in **$0.00 idle costs**.
+- `lambda-engine/`: Rust Lambda runtime, request validation, filtering, and Lance search path
+- `mcp-bridge/`: MCP server exposing `search_cold_archive`
+- `scripts/`: synthetic dataset generation and optional S3 upload/promotion flow
+- `docs/`: active reference docs plus a `deprecated/` archive for superseded planning material
+- `template.yaml`: SAM deployment template for the Lambda and HTTP API
 
-### **2. Object-Storage Native Indexing**
-Instead of keeping expensive vectors in RAM or on high-speed SSDs, this architecture treats **Amazon S3** as the primary database. By using the **Lance** columnar format, the system can perform "random access" scans on multi-terabyte files without downloading the entire dataset, cutting storage costs by up to **90%**.
+## Quick start
 
-### **3. Hybrid Analytical Retrieval**
-The breakthrough isn't just searching vectors; it's combining them with structured data. By integrating **DuckDB**, the engine can filter metadata (e.g., "Find files from *Project X* in *2023*") while simultaneously performing a semantic search (e.g., "...about *structural failure*").
+### 1. Seed a local dataset
 
-### **4. "Dark Data" Illumination**
-Enterprises sit on petabytes of "Dark Data"—unstructured logs, legal depositions, and old project archives that are too expensive to index but too risky to delete. This product provides a cost-effective way to make these archives searchable for **Legal Discovery, Audits, and Historical Research**.
-
----
-
-## 🏗️ System Architecture Highlights
-* **Event-Driven Ingestion:** Automated vectorization triggered by S3 file uploads.
-* **Decoupled Storage & Compute:** Scale your data to petabytes without needing to manage a single server.
-* **Latency Optimization:** Achieves sub-300ms retrieval by utilizing range-requests and local caching within ephemeral Lambda environments.
-
----
-
-## 📊 The "Efficiency" Moat
-| Metric | Industry Standard | **Cold-Storage Search** |
-| :--- | :--- | :--- |
-| **Storage Tier** | High-Speed RAM/SSD | **S3 / Object Storage** |
-| **Monthly Cost (1TB)** | ~$600.00+ | **~$5.00 - $40.00** |
-| **Maintenance** | Cluster Management | **Zero-Ops (Serverless)** |
-
----
-
-## 🛡️ Strategic Roadmap
-* **Multi-Cloud Portability:** Seamless search across AWS, Azure, and Google Cloud.
-* **Privacy-First Design:** Deployment within a private VPC to ensure data never leaves the enterprise boundary.
-* **Local-Daemon Sync:** A Rust-based service to bridge local desktop files with cloud archives.
-
----
-
-## Rust API documentation
-
-Indexed links for the core crates (**Lance**, **DuckDB**, **AWS SDK for S3**) used by the search engine are in [`docs/RUST_CRATE_DOCS.md`](docs/RUST_CRATE_DOCS.md).
-
----
-
-## Python: synthetic data seed (`scripts/seed.py`)
-
-Install dependencies with the **transitive lock** so every sub-dependency matches CI and other machines:
+Install Python dependencies:
 
 ```bash
 pip install -r scripts/requirements.txt -c scripts/constraints.txt
 ```
 
-Direct dependencies are listed in `scripts/requirements.txt`; exact versions of all transitive packages are pinned in `scripts/constraints.txt`. Regenerate the lock after changing bounds in `requirements.txt` (use a clean virtual environment, `pip install -r scripts/requirements.txt`, then `pip freeze` into `scripts/constraints.txt` and restore the first-line comment in that file).
+Generate a small local dataset:
 
----
+```bash
+python scripts/seed.py --rows 2000 --output-dir _smoke_lance_seed --force
+```
+
+Generate the default full local dataset:
+
+```bash
+python scripts/seed.py --force
+```
+
+Both `lance_seed/` and `_smoke_lance_seed/` are generated outputs and should remain untracked.
+
+### 2. Validate the Rust Lambda
+
+```bash
+cd lambda-engine
+cargo test
+```
+
+### 3. Build the MCP bridge
+
+```bash
+cd mcp-bridge
+npm install
+npm run build
+```
+
+## Runtime configuration
+
+Important Lambda environment variables:
+
+- `TRACE_LANCE_S3_URI`: canonical `s3://bucket/prefix` dataset location
+- `TRACE_S3_BUCKET` and `TRACE_LANCE_PREFIX`: fallback pair if `TRACE_LANCE_S3_URI` is unset
+- `TRACE_QUERY_VECTOR_DIM`: expected embedding dimension, default `1536`
+- `TRACE_MAX_PAYLOAD_BYTES`: request body limit, default `262144`
+- `TRACE_API_KEY_SECRET`: optional HTTP API key secret; blank means IAM-only mode
+
+Important MCP bridge environment variables:
+
+- `TRACE_SEARCH_URL`: deployed HTTP search endpoint
+- `OPENAI_API_KEY`: required unless `USE_MOCK_EMBEDDINGS=true`
+- `OPENAI_EMBEDDING_MODEL`: defaults to `text-embedding-3-small`
+- `TRACE_QUERY_VECTOR_DIM`: optional cross-check against the embedding model dimension
+- `TRACE_MCP_MOCK`: return mock search responses instead of calling the endpoint
+- `USE_MOCK_EMBEDDINGS`: generate zero-vectors for local testing only
+
+## Current behavior
+
+- Search route: `POST /search`
+- Transport: API Gateway HTTP API v2 or direct Lambda invoke
+- Result limit: defaults to `10`, capped at `50`
+- Metadata filter: constrained `sql_filter` grammar over `incident_id`, `timestamp`, `city_code`, and `doc_type`
+- Text projection: `include_text: true` adds `text_content` to results
+
+## Documentation map
+
+- `docs/ARCHITECTURE.md`: component-level system overview
+- `docs/API_CONTRACT.md`: request, response, auth, and filter grammar reference
+- `docs/DATA_SPEC.md`: synthetic dataset schema and seed script behavior
+- `docs/PROJECT_STATE.md`: current implementation snapshot
+- `docs/NEXT_STEPS.md`: active prioritized backlog
+- `docs/RUST_CRATE_DOCS.md`: external Rust dependency documentation index
+
+Superseded planning docs and older README/state snapshots are preserved in `docs/deprecated/` with timestamped filenames.

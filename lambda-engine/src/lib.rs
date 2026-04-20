@@ -3,5 +3,6 @@
 pub mod auth;
 pub mod config;
 pub mod error;
+pub mod filter;
 pub mod http;
 pub mod search;

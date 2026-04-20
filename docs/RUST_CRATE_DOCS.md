@@ -1,17 +1,19 @@
-# Rust crate API documentation index
+# Rust crate documentation index
 
-Canonical entry points for Trace’s primary Rust dependencies. Use these URLs with Cursor **@Docs**, team bookmarks, or when cross-checking signatures while implementing the Lambda search engine.
+Reference links for the Rust crates that matter to the current Trace implementation.
 
-## Index
+## Primary crates
 
-| Crate | Role in Trace | API documentation |
-| :--- | :--- | :--- |
-| **lance** | Columnar vector dataset format, IVF-PQ search, and range-friendly I/O against object storage. | [lancedb.github.io — `lance` crate](https://lancedb.github.io/lance/rust/lance/index.html) |
-| **duckdb** | Embedded SQL over metadata and pre-filtering before or alongside vector retrieval. | [docs.rs — `duckdb`](https://docs.rs/duckdb/latest/duckdb/) |
-| **aws-sdk-s3** | S3 object and byte-range access without pulling full archives into Lambda memory. | [docs.rs — `aws-sdk-s3`](https://docs.rs/aws-sdk-s3/latest/aws_sdk_s3/) |
+| Crate | Role | Docs |
+| --- | --- | --- |
+| `lance` | Dataset access and nearest-neighbor search | [https://lancedb.github.io/lance/rust/lance/index.html](https://lancedb.github.io/lance/rust/lance/index.html) |
+| `lance-linalg` | Distance metric support used by the search path | [https://docs.rs/lance-linalg/latest/lance_linalg/](https://docs.rs/lance-linalg/latest/lance_linalg/) |
+| `aws-sdk-s3` | S3 client access for dataset-backed execution | [https://docs.rs/aws-sdk-s3/latest/aws_sdk_s3/](https://docs.rs/aws-sdk-s3/latest/aws_sdk_s3/) |
+| `lambda_runtime` | AWS Lambda runtime integration | [https://docs.rs/lambda_runtime/latest/lambda_runtime/](https://docs.rs/lambda_runtime/latest/lambda_runtime/) |
+| `arrow-array` | Arrow array access during response serialization | [https://docs.rs/arrow-array/latest/arrow_array/](https://docs.rs/arrow-array/latest/arrow_array/) |
+| `arrow-schema` | Arrow type inspection for projected result fields | [https://docs.rs/arrow-schema/latest/arrow_schema/](https://docs.rs/arrow-schema/latest/arrow_schema/) |
 
 ## Notes
 
-- **Lance:** The project-hosted Rust API book at `lancedb.github.io` tracks the same crate as [docs.rs `lance`](https://docs.rs/lance/latest/lance/); prefer whichever layout your tools index best, but treat the hosted book as the primary navigation target when it is available.
-- **DuckDB:** The Rust crate wraps the embedded DuckDB engine; refer to type and function docs on docs.rs for connection, prepared statements, and Arrow integration.
-- **AWS SDK for S3:** Use the client and operation builders in this crate for `GetObject` with range headers, retries, and regional configuration consistent with AWS Lambda’s execution role.
+- Older planning docs referenced DuckDB heavily, but the current implementation uses a constrained filter parser compiled into Lance/DataFusion-compatible predicates instead.
+- Treat these links as implementation references, not product documentation.
