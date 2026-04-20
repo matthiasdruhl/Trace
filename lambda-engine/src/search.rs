@@ -4,8 +4,8 @@ use std::sync::{Arc, OnceLock};
 
 use arrow_array::{
     Array, ArrayRef, Float32Array, Float64Array, Int32Array, Int64Array, LargeStringArray,
-    RecordBatch, StringArray, StringViewArray, TimestampMicrosecondArray, TimestampMillisecondArray,
-    TimestampNanosecondArray, TimestampSecondArray,
+    RecordBatch, StringArray, StringViewArray, TimestampMicrosecondArray,
+    TimestampMillisecondArray, TimestampNanosecondArray, TimestampSecondArray,
 };
 use arrow_schema::{DataType, TimeUnit};
 use aws_sdk_s3::Client as S3Client;
@@ -509,8 +509,8 @@ pub async fn run(req: &SearchRequest, deps: &RuntimeDeps<'_>) -> Result<SearchRe
         compiled_filter.as_deref(),
         true,
     )
-        .await
-        .map_err(kernel_err_to_api)?;
+    .await
+    .map_err(kernel_err_to_api)?;
     Ok(SearchResponse {
         ok: true,
         results,
@@ -780,11 +780,7 @@ mod tests {
             ),
             Field::new("city_code", DataType::Utf8, false),
             Field::new("doc_type", DataType::Utf8, false),
-            Field::new(
-                "vector",
-                DataType::FixedSizeList(item.clone(), dim),
-                false,
-            ),
+            Field::new("vector", DataType::FixedSizeList(item.clone(), dim), false),
         ]));
 
         let v_nyc_a: Vec<f32> = vec![1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
@@ -800,20 +796,14 @@ mod tests {
             .copied()
             .collect();
         let vec_field = Arc::new(Field::new("item", DataType::Float32, true));
-        let vectors = FixedSizeListArray::try_new(
-            vec_field,
-            dim,
-            Arc::new(Float32Array::from(flat)),
-            None,
-        )
-        .unwrap();
+        let vectors =
+            FixedSizeListArray::try_new(vec_field, dim, Arc::new(Float32Array::from(flat)), None)
+                .unwrap();
 
         let batch = RecordBatch::try_new(
             schema.clone(),
             vec![
-                Arc::new(StringArray::from(vec![
-                    "inc-1", "inc-2", "inc-3", "inc-4",
-                ])),
+                Arc::new(StringArray::from(vec!["inc-1", "inc-2", "inc-3", "inc-4"])),
                 Arc::new(TimestampMillisecondArray::from(vec![
                     millis_rfc3339("2025-06-01T12:00:00Z"),
                     millis_rfc3339("2025-06-15T12:00:00Z"),
@@ -821,10 +811,7 @@ mod tests {
                     millis_rfc3339("2025-08-01T12:00:00Z"),
                 ])),
                 Arc::new(StringArray::from(vec![
-                    "NYC-TLC",
-                    "SF-CPUC",
-                    "NYC-TLC",
-                    "NYC-TLC",
+                    "NYC-TLC", "SF-CPUC", "NYC-TLC", "NYC-TLC",
                 ])),
                 Arc::new(StringArray::from(vec![
                     "Insurance_Lapse_Report",
@@ -884,9 +871,7 @@ mod tests {
         let ds = write_filter_fixture_dataset(uri).await;
 
         let query: Vec<f32> = vec![1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
-        let all = search_fixture(&ds, query.clone(), 10, "")
-            .await
-            .unwrap();
+        let all = search_fixture(&ds, query.clone(), 10, "").await.unwrap();
         let nyc = search_fixture(&ds, query.clone(), 10, "city_code = 'NYC-TLC'")
             .await
             .unwrap();
@@ -915,7 +900,13 @@ mod tests {
         assert!(all_ids.contains("inc-1"));
         assert!(all_ids.contains("inc-2"));
 
-        assert_eq!(incident_set(&nyc), ["inc-1", "inc-3", "inc-4"].into_iter().map(String::from).collect());
+        assert_eq!(
+            incident_set(&nyc),
+            ["inc-1", "inc-3", "inc-4"]
+                .into_iter()
+                .map(String::from)
+                .collect()
+        );
         assert_eq!(
             incident_set(&in_types),
             ["inc-1", "inc-4"].into_iter().map(String::from).collect()
@@ -951,7 +942,10 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(incident_set(&with_filter), ["inc-2"].into_iter().map(String::from).collect());
+        assert_eq!(
+            incident_set(&with_filter),
+            ["inc-2"].into_iter().map(String::from).collect()
+        );
         assert!(incident_set(&without).contains("inc-1"));
         assert!(incident_set(&without).len() > with_filter.len());
     }
@@ -962,14 +956,9 @@ mod tests {
         let uri = tmp.path().to_str().unwrap();
         let ds = write_filter_fixture_dataset(uri).await;
 
-        let err = search_fixture(
-            &ds,
-            vec![1.0; FILTER_FIXTURE_DIM],
-            5,
-            "city_code IN ()",
-        )
-        .await
-        .unwrap_err();
+        let err = search_fixture(&ds, vec![1.0; FILTER_FIXTURE_DIM], 5, "city_code IN ()")
+            .await
+            .unwrap_err();
         assert_eq!(err.status, 400);
         assert_eq!(err.code, "INVALID_SQL_FILTER");
     }
@@ -1007,20 +996,11 @@ mod tests {
             ),
             Field::new("city_code", DataType::Utf8, false),
             Field::new("doc_type", DataType::Utf8, false),
-            Field::new(
-                "vector",
-                DataType::FixedSizeList(item.clone(), dim),
-                false,
-            ),
+            Field::new("vector", DataType::FixedSizeList(item.clone(), dim), false),
         ]));
         let v: Vec<f32> = vec![1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
-        let vec_col = FixedSizeListArray::try_new(
-            item,
-            dim,
-            Arc::new(Float32Array::from(v)),
-            None,
-        )
-        .unwrap();
+        let vec_col =
+            FixedSizeListArray::try_new(item, dim, Arc::new(Float32Array::from(v)), None).unwrap();
         let batch = RecordBatch::try_new(
             schema.clone(),
             vec![

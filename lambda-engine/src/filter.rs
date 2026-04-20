@@ -266,7 +266,10 @@ impl<'a> Parser<'a> {
                     return Ok(out);
                 }
             } else {
-                let c = self.rest[i..].chars().next().ok_or_else(invalid_sql_filter)?;
+                let c = self.rest[i..]
+                    .chars()
+                    .next()
+                    .ok_or_else(invalid_sql_filter)?;
                 out.push(c);
                 i += c.len_utf8();
             }
@@ -277,16 +280,16 @@ impl<'a> Parser<'a> {
     fn parse_comp_op(&mut self) -> Result<CompareOp, ApiError> {
         self.skip_ws();
         let rest = self.rest;
-        if rest.starts_with("!=") {
-            self.rest = &rest[2..];
+        if let Some(stripped) = rest.strip_prefix("!=") {
+            self.rest = stripped;
             return Ok(CompareOp::Ne);
         }
-        if rest.starts_with("<=") {
-            self.rest = &rest[2..];
+        if let Some(stripped) = rest.strip_prefix("<=") {
+            self.rest = stripped;
             return Ok(CompareOp::Lte);
         }
-        if rest.starts_with(">=") {
-            self.rest = &rest[2..];
+        if let Some(stripped) = rest.strip_prefix(">=") {
+            self.rest = stripped;
             return Ok(CompareOp::Gte);
         }
         let mut cs = rest.chars();
@@ -424,19 +427,14 @@ mod tests {
     #[test]
     fn simple_equality_compiles() {
         let e = parse_filter("city_code = 'NYC-TLC'").unwrap().unwrap();
-        assert_eq!(
-            compile_filter(&e).unwrap(),
-            "city_code = 'NYC-TLC'"
-        );
+        assert_eq!(compile_filter(&e).unwrap(), "city_code = 'NYC-TLC'");
     }
 
     #[test]
     fn in_list_compiles() {
-        let e = parse_filter(
-            "doc_type IN ('Insurance_Lapse_Report', 'Safety_Incident_Log')",
-        )
-        .unwrap()
-        .unwrap();
+        let e = parse_filter("doc_type IN ('Insurance_Lapse_Report', 'Safety_Incident_Log')")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             compile_filter(&e).unwrap(),
             "doc_type IN ('Insurance_Lapse_Report', 'Safety_Incident_Log')"
@@ -445,11 +443,9 @@ mod tests {
 
     #[test]
     fn and_groups_with_parens_in_output() {
-        let e = parse_filter(
-            "city_code = 'NYC-TLC' AND doc_type = 'Insurance_Lapse_Report'",
-        )
-        .unwrap()
-        .unwrap();
+        let e = parse_filter("city_code = 'NYC-TLC' AND doc_type = 'Insurance_Lapse_Report'")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             compile_filter(&e).unwrap(),
             "(city_code = 'NYC-TLC') AND (doc_type = 'Insurance_Lapse_Report')"
@@ -482,11 +478,9 @@ mod tests {
 
     #[test]
     fn timestamp_in_list_each_casts() {
-        let e = parse_filter(
-            "timestamp IN ('2025-01-01T00:00:00Z', '2025-06-01T00:00:00Z')",
-        )
-        .unwrap()
-        .unwrap();
+        let e = parse_filter("timestamp IN ('2025-01-01T00:00:00Z', '2025-06-01T00:00:00Z')")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             compile_filter(&e).unwrap(),
             "timestamp IN (CAST('2025-01-01T00:00:00Z' AS TIMESTAMP), CAST('2025-06-01T00:00:00Z' AS TIMESTAMP))"
@@ -637,7 +631,8 @@ mod tests {
             .unwrap();
         let ds = Dataset::open(&uri).await.unwrap();
         let mut scan = ds.scan();
-        scan.filter(&pred).expect("compiled filter should be accepted by Lance scanner");
+        scan.filter(&pred)
+            .expect("compiled filter should be accepted by Lance scanner");
         let stream = scan.try_into_stream().await.unwrap();
         let total_rows: usize = stream
             .try_fold(0usize, |acc, b| async move { Ok(acc + b.num_rows()) })
