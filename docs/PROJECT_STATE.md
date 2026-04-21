@@ -1,10 +1,10 @@
 # Trace project state
 
-Last updated: 2026-04-20
+Last updated: 2026-04-21
 
 ## Summary
 
-Trace is no longer just a planning repository. The codebase currently contains a working Rust Lambda search service, a working MCP bridge, a synthetic data generation pipeline, and an AWS SAM deployment template.
+Trace is no longer just a planning repository. The codebase currently contains a working Rust Lambda search service, a working MCP bridge, a synthetic data generation pipeline, an AWS SAM deployment template, and a deployed proof-path runner with targeted tests.
 
 The active code path supports:
 
@@ -49,6 +49,22 @@ Implemented in `scripts/seed.py`:
 - optional S3 staging upload and promotion flow
 - CLI validation and local disk-space preflight checks
 
+Important current limitation:
+
+- `scripts/seed.py` still generates random vectors rather than real semantic embeddings, so it remains suitable for smoke/infrastructure datasets rather than the future eval/demo dataset
+
+### Deployed proof path
+
+Implemented in `scripts/prove_deployed_path.py`, `scripts/proof_mcp_stdio.py`, `fixtures/deployed/`, and `tests/`:
+
+- stack output and deployed search URL resolution
+- deployed `POST /search` execution
+- MCP stdio traversal through `mcp-bridge`
+- golden-case loading and proof-oriented assertions
+- per-run artifacts and manifest writing
+- scrubbed stable-fixture promotion helpers
+- unit coverage for runner and MCP stdio failure paths
+
 ### Deployment
 
 Implemented in `template.yaml`:
@@ -56,18 +72,22 @@ Implemented in `template.yaml`:
 - ARM64 Lambda packaging via SAM and `cargo-lambda`
 - HTTP API `POST /search`
 - CORS configuration
-- S3 read permissions for the configured dataset prefix
+- S3 read permissions for the configured dataset prefix (parameters `TraceDataBucketName` / `TraceLancePrefix`; stack output `TraceDatasetS3Uri`)
 - optional Secrets Manager-backed API key injection
+- stack outputs for `HttpApiUrl`, `SearchUrl`, `TraceDatasetS3Uri`, and `TraceSearchFunctionArn`
 
 ## What is not fully done
 
 - There is no user-facing web application in this repository
-- The synthetic seed script uses random vectors rather than a production embedding pipeline
-- End-to-end deployed validation still depends on a real AWS environment and a populated S3 dataset
-- Documentation is now aligned to the codebase, but deployment playbooks and benchmark evidence can still be improved
+- The synthetic seed script still uses random vectors rather than a production embedding pipeline
+- A new embedding-backed eval dataset has not yet been uploaded to `s3://trace-vault/trace/eval/lance/`
+- The deployed stack has not yet been repointed away from the current smoke dataset at `s3://trace-vault/uber_audit.lance/`
+- A real embedding-backed S3 validation run has not yet been recorded
+- `fixtures/deployed/examples/` exists, but representative committed stable fixtures have not been generated yet
 
 ## Current repo guidance
 
 - Use `codex/clean-main-candidate` as the clean promotion branch when replacing or merging into `main`
 - Treat `docs/deprecated/` as historical context, not active reference material
 - Do not recommit generated Lance dataset directories
+- Treat `s3://trace-vault/uber_audit.lance/` as the current random-vector smoke dataset until the eval prefix is populated and validated

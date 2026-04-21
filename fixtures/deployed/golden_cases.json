@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "case_id": "unfiltered-demo",
+      "query_text": "recent vehicle inspection audit with overdue paperwork",
+      "sql_filter": "",
+      "limit": 5,
+      "include_text": true,
+      "expected_ids": [],
+      "assertions": {
+        "require_non_empty_results": true,
+        "require_filter_match": false
+      }
+    },
+    {
+      "case_id": "filtered-nyc-safety",
+      "query_text": "safety incident reports in New York with supporting narrative",
+      "sql_filter": "city_code = 'NYC-TLC' AND doc_type = 'Safety_Incident_Log'",
+      "limit": 5,
+      "include_text": true,
+      "expected_ids": [],
+      "assertions": {
+        "require_non_empty_results": true,
+        "require_filter_match": true
+      }
+    },
+    {
+      "case_id": "filtered-chi-insurance",
+      "query_text": "insurance lapse or coverage gap for fleet vehicles",
+      "sql_filter": "city_code = 'CHI-BACP' AND doc_type = 'Insurance_Lapse_Report'",
+      "limit": 4,
+      "include_text": true,
+      "expected_ids": [],
+      "assertions": {
+        "require_non_empty_results": true,
+        "require_filter_match": true
+      }
+    },
+    {
+      "case_id": "filtered-doc-type-in",
+      "query_text": "driver complaint escalations with detailed timeline",
+      "sql_filter": "doc_type IN ('Driver_Background_Flag', 'Safety_Incident_Log')",
+      "limit": 6,
+      "include_text": false,
+      "expected_ids": [],
+      "assertions": {
+        "require_non_empty_results": true,
+        "require_filter_match": false
+      }
+    },
+    {
+      "case_id": "unfiltered-narrow-limit",
+      "query_text": "late-night roadside inspection findings",
+      "sql_filter": "",
+      "limit": 3,
+      "include_text": true,
+      "expected_ids": [],
+      "assertions": {
+        "require_non_empty_results": true,
+        "require_filter_match": false
+      }
+    }
+  ]
+}
