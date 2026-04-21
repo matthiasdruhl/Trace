@@ -1,0 +1,109 @@
+name: lambda-engine CI
+
+on:
+  push:
+    paths:
+      - 'lambda-engine/**'
+      - 'mcp-bridge/**'
+      - 'template.yaml'
+      - 'samconfig.toml'
+      - '.github/workflows/lambda-engine-ci.yml'
+  pull_request:
+    paths:
+      - 'lambda-engine/**'
+      - 'mcp-bridge/**'
+      - 'template.yaml'
+      - 'samconfig.toml'
+      - '.github/workflows/lambda-engine-ci.yml'
+
+jobs:
+  mcp-bridge:
+    name: MCP bridge (Node)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcp-bridge
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: mcp-bridge/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck & build
+        run: npm run build
+
+  rust:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: lambda-engine
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install protobuf compiler
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Rust cache (lambda-engine)
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: lambda-engine
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+      - name: cargo clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: cargo test
+        run: cargo test
+
+  # Validates SAM template + reproduces the ARM64/cargo-lambda artifact path (same as deploy).
+  package:
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    needs: rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install protobuf compiler
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-gnu
+
+      - name: Rust cache (lambda-engine)
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: lambda-engine
+
+      - name: Install SAM CLI
+        uses: aws-actions/setup-sam@v2
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
+
+      - name: Cache cargo-lambda binary
+        id: cache-cargo-lambda
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-lambda
+          key: cargo-lambda-bin-${{ runner.os }}-x86_64-v1
+
+      - name: Install cargo-lambda
+        if: steps.cache-cargo-lambda.outputs.cache-hit != 'true'
+        run: curl -fsSL https://cargo-lambda.info/install.sh | sh
+
+      # Helps native/link dependencies when cross-compiling to aarch64 on the x86_64 runner.
+      - name: Install aarch64 GNU linker (cross)
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: SAM validate (--lint)
+        run: sam validate --lint
+
+      - name: SAM build (ARM64 / provided.al2023 via cargo-lambda)
+        env:
+          SAM_CLI_BETA_RUST_CARGO_LAMBDA: "1"
+        run: sam build --beta-features
