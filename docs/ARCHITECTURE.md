@@ -11,6 +11,8 @@ The active runtime path is:
 3. The Rust Lambda validates the request, enforces optional API key auth, opens the Lance dataset, applies a constrained metadata filter when present, and runs nearest-neighbor search.
 4. Results are returned as JSON over API Gateway HTTP API v2 or direct Lambda invoke.
 
+The repo also contains an operator-oriented proof path used to validate that deployed HTTP and MCP traversal behave correctly against a live stack.
+
 ## Components
 
 ### `scripts/seed.py`
@@ -24,7 +26,15 @@ The seed script generates synthetic compliance-style records with this schema:
 - `text_content`
 - `vector`
 
-It writes a Lance table locally, builds an IVF-PQ index over `vector`, and can optionally upload to S3 using a staging-prefix then promote flow.
+It writes a source parquet file, generates vectors in either `openai` or
+`random` mode, writes a seed manifest, builds a Lance table locally, and can
+optionally upload to S3 using a staging-prefix then promote flow.
+
+Current behavior:
+
+- `openai` is the default embedding mode for local eval/demo dataset generation
+- `random` remains an explicit smoke/infrastructure mode
+- the local embedding path is now semantically meaningful, but the shared eval prefix has not been populated yet
 
 ### `lambda-engine/`
 
@@ -47,14 +57,26 @@ The MCP bridge exposes a single tool:
 
 It validates tool arguments, generates embeddings through OpenAI unless mock mode is enabled, calls the deployed Trace search endpoint, and returns the normalized JSON response to the MCP client.
 
+### `scripts/prove_deployed_path.py` and `scripts/proof_mcp_stdio.py`
+
+These scripts provide deployment-proof orchestration:
+
+- resolve deployed stack outputs and runtime context
+- call deployed `POST /search`
+- invoke `mcp-bridge` over stdio JSON-RPC for the same golden cases
+- assert contract-level correctness for response shape, expected ids, and narrow proof-oriented filter behavior
+- write per-run manifests and artifacts
+- optionally promote scrubbed stable fixtures into `fixtures/deployed/examples/`
+
 ### `template.yaml`
 
 The SAM template provisions:
 
 - an ARM64 Rust Lambda using `provided.al2023`
 - an HTTP API with `POST /search`
-- S3 read permissions for the configured Lance prefix
+- S3 read permissions scoped to the configured Lance prefix (parameters `TraceDataBucketName` and `TraceLancePrefix`, which set `TRACE_LANCE_S3_URI` and matching IAM)
 - optional Secrets Manager-backed API key injection
+- stack outputs for `HttpApiUrl`, `SearchUrl`, `TraceDatasetS3Uri`, and `TraceSearchFunctionArn`
 
 ## Search execution model
 
@@ -92,10 +114,12 @@ The Lambda parses the filter into a typed AST and compiles it into a predicate s
 - Search limit is capped at `50`
 - Payload size defaults to `256 KiB`
 - Search is tuned for S3-backed Lance datasets, not local interactive dashboards
-- The seed script currently generates random vectors for synthetic data, which is sufficient for structural testing but not a production embedding pipeline
+- The seed script keeps `1536`-dimensional output so it stays aligned with the current Lambda and MCP bridge
+- The current deployed smoke dataset is `s3://trace-vault/uber_audit.lance/`
+- The intended future eval dataset prefix is `s3://trace-vault/trace/eval/lance/`, but that cutover has not happened yet
 
 ## Current gaps
 
 - No end-user UI is included in this repository
-- The seed script does not generate real semantic embeddings
-- Deployment validation still depends on the target AWS environment and dataset availability
+- A real embedding-backed S3 validation run and eval-prefix cutover have not happened yet
+- Stable example fixtures have not yet been committed under `fixtures/deployed/examples/`

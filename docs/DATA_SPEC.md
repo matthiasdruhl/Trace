@@ -14,11 +14,15 @@ It is synthetic compliance-style data, not production customer data.
 
 ## Default dataset profile
 
-- default row count: `100000`
+- default row count: `2000`
 - default local output root: `./lance_seed/`
 - example smoke output root: `./_smoke_lance_seed/`
 - vector dimension: `1536`
-- index type: IVF-PQ on the `vector` column
+- default embedding mode: `openai`
+- default embedding model: `text-embedding-3-small`
+- source artifact: `<output_dir>/<table_name>.source.parquet`
+- manifest artifact: `<output_dir>/<table_name>.seed-manifest.json`
+- index type: IVF-PQ on the `vector` column when the dataset is large enough to train it
 
 ## Table schema
 
@@ -26,12 +30,12 @@ The generated Lance table contains these columns:
 
 | Column | Type | Notes |
 | --- | --- | --- |
-| `incident_id` | string | UUID-like synthetic record identifier |
+| `incident_id` | string | Stable deterministic identifier derived from `seed` plus row index |
 | `timestamp` | timestamp | Synthetic event time |
 | `city_code` | string | Jurisdiction code |
 | `doc_type` | string | Compliance document category |
-| `text_content` | string | Expanded narrative body |
-| `vector` | `float32[1536]` | Synthetic embedding vector |
+| `text_content` | string | Expanded narrative body with paraphrases and near misses |
+| `vector` | `float32[1536]` | OpenAI embedding vector by default, or deterministic random smoke vector |
 
 ## Enumerated value sets
 
@@ -56,9 +60,31 @@ The generated Lance table contains these columns:
 
 ## Text generation
 
-The script synthesizes compliance and audit narratives, then expands them with filler sentences so the text body resembles realistic archival records instead of short labels.
+The script synthesizes compliance and audit narratives from a deterministic
+scenario catalog, then expands them with filler sentences so the text body
+resembles realistic archival records instead of short labels.
 
-The current seed path uses random float vectors rather than live embedding generation. That is acceptable for structural testing, but it should not be confused with a production ingestion pipeline.
+The source corpus is intentionally designed to include:
+
+- semantically related records that use different wording for the same concept
+- near-miss records that share keywords but should not rank as true matches
+- realistic `city_code` and `doc_type` combinations for filtered retrieval tests
+
+The default seed path embeds `text_content` with OpenAI using
+`text-embedding-3-small`. Random vectors remain available only through the
+explicit smoke-mode flag.
+
+## Vector generation modes
+
+- `--embedding-mode openai`
+  - default mode
+  - requires `OPENAI_API_KEY`
+  - uses `--embedding-model` (default `text-embedding-3-small`)
+  - currently restricted to models that resolve to `1536` dimensions
+- `--embedding-mode random`
+  - deterministic smoke / infrastructure mode
+  - does not require `OPENAI_API_KEY`
+  - should not be used as evidence of semantic retrieval quality
 
 ## CLI behavior
 
@@ -66,21 +92,27 @@ Important arguments:
 
 - `--rows`: number of records to generate
 - `--output-dir`: local output directory root
+- `--embedding-mode`: `openai` for real embeddings, `random` for smoke-only vectors
+- `--embedding-model`: OpenAI embedding model, default `text-embedding-3-small`
 - `--bucket`: S3 bucket for upload mode
 - `--s3-prefix`: destination prefix in the bucket
 - `--skip-upload` / `--no-skip-upload`: local-only versus upload flow
 - `--promote-to-live`: copy the staged upload to the live prefix after a successful upload
-- `--force`: overwrite an existing local output directory
+- `--force`: overwrite an existing local table, source parquet, and manifest
 
 ## Upload model
 
 When upload mode is enabled, the script:
 
-1. writes the local Lance dataset
-2. uploads to a unique staging prefix
-3. orders uploads so manifests and transaction objects are written last
-4. optionally promotes the staged dataset to the live prefix
+1. writes the source parquet and local Lance dataset under `output_dir`
+2. writes the seed manifest under `output_dir`
+3. uploads to a unique staging prefix
+4. orders uploads so manifests and transaction objects are written last
+5. optionally promotes the staged dataset to the live prefix
 
 ## Operational note
 
-`lance_seed/` and `_smoke_lance_seed/` are generated artifacts. They are intentionally gitignored and should be recreated locally rather than committed.
+`lance_seed/` and `_smoke_lance_seed/` are generated artifacts. The companion
+source parquet and seed manifest are also written under the selected
+`output_dir`. These artifacts are intentionally gitignored and should be
+recreated locally rather than committed.

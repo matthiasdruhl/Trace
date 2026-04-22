@@ -1,12 +1,14 @@
 # Trace Filtering Implementation README
 
+Status note (2026-04-21): the filtering system described here has already been implemented in the active codebase. This document is retained as the implementation rationale and design record for the current constrained `sql_filter` model; the live contract is documented in `docs/API_CONTRACT.md`.
+
 This document specifies how to implement **real metadata filtering** in `lambda-engine` for Trace's current architecture.
 
 It is intentionally concrete. The goal is not to brainstorm filtering ideas; the goal is to define the implementation path that best fits the code that exists today.
 
 ---
 
-## Goal
+## Historical goal
 
 Make `sql_filter` in the Lambda search API actually affect the result set returned by `POST /search`.
 
@@ -294,7 +296,7 @@ The important thing is that:
 
 ### 5. Update `docs/API_CONTRACT.md`
 
-Change the `sql_filter` description from:
+Historically, this required changing the `sql_filter` description from:
 
 - accepted but not applied
 

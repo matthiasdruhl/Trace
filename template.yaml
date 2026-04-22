@@ -9,11 +9,18 @@ Parameters:
   TraceDataBucketName:
     Type: String
     Default: trace-vault
-    Description: S3 bucket that holds the Lance dataset tree (see scripts/seed.py --bucket / --s3-prefix).
+    Description: >
+      S3 bucket for the Lance dataset tree. Lambda env TRACE_S3_BUCKET and IAM read paths use this
+      value. Keep the legacy random-vector dataset at its existing prefix (e.g. uber_audit.lance);
+      do not overwrite it in place. Point TraceLancePrefix at a separate prefix for new data.
   TraceLancePrefix:
     Type: String
     Default: uber_audit.lance
-    Description: Key prefix for the dataset root inside the bucket (no leading slash).
+    Description: >
+      Object key prefix for the Lance dataset root inside the bucket (no leading slash; trailing
+      slashes optional—runtime normalizes). Default preserves the existing random-vector smoke dataset.
+      For embedding-backed eval data, use a disjoint prefix such as trace/eval/lance after upload.
+      Changing this parameter updates TRACE_LANCE_PREFIX, TRACE_LANCE_S3_URI, and S3 IAM in one step.
   TraceApiKeySecretRef:
     Type: String
     Default: ''
@@ -66,6 +73,8 @@ Resources:
       Runtime: provided.al2023
       Environment:
         Variables:
+          # Bucket + prefix are mirrored for operators; the Rust runtime treats TRACE_LANCE_S3_URI as
+          # canonical when set (see lambda-engine/src/config.rs).
           TRACE_S3_BUCKET: !Ref TraceDataBucketName
           TRACE_LANCE_PREFIX: !Ref TraceLancePrefix
           TRACE_LANCE_S3_URI: !Sub 's3://${TraceDataBucketName}/${TraceLancePrefix}'
@@ -131,6 +140,11 @@ Outputs:
   SearchUrl:
     Description: Full URL for search invocations
     Value: !Sub 'https://${ServerlessHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/search'
+  TraceDatasetS3Uri:
+    Description: >
+      Resolved s3:// URI passed to the Lambda as TRACE_LANCE_S3_URI (same as TraceDataBucketName +
+      TraceLancePrefix). Use this when syncing manifests or docs to the live dataset location.
+    Value: !Sub 's3://${TraceDataBucketName}/${TraceLancePrefix}'
   TraceSearchFunctionArn:
     Description: Lambda function ARN
     Value: !GetAtt TraceSearchFunction.Arn

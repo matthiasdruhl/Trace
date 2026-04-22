@@ -1,6 +1,8 @@
 # Lance synthetic seed output from scripts/seed.py (generated; never commit)
 /lance_seed/
 /_smoke_lance_seed/
+/artifacts/
+/.test-tmp/
 
 # Rust
 lambda-engine/target/
