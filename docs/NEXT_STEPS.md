@@ -1,21 +1,30 @@
 # Trace next steps
 
-Last updated: 2026-04-21
+Last updated: 2026-04-22
 
 This is the active prioritized backlog for the current implementation, not a sprint-era planning memo.
 
 ## 1. Align the ingestion and retrieval story
 
-The current codebase is structurally sound, but the seed script still generates random vectors. That is acceptable for structural testing, but it does not prove semantic retrieval quality. The next milestone should make the dataset story honest, reproducible, and judgeable.
+The repository now has the core code path for this milestone:
+
+- deterministic source-record generation
+- explicit `random` smoke mode
+- real OpenAI-backed embedding generation as the default local path
+- source parquet and seed-manifest output for provenance
+
+That moves the dataset story much closer to honest and reproducible, but the
+project still needs to use that path deliberately and keep smoke-vs-eval
+claims clean.
 
 **S3:** Keep the legacy random-vector dataset at `s3://trace-vault/uber_audit.lance/` as smoke/infra; put the new embedding-backed dataset under `s3://trace-vault/trace/eval/lance/` and repoint only after validation. See [S3_MIGRATION.md](S3_MIGRATION.md).
 
-Required follow-up:
+Remaining follow-up for this milestone:
 
-- keep random vectors only as an explicit structural/local smoke-test mode and document that clearly
-- add a real embedding-backed ingestion mode for demo and evaluation datasets
-- ensure the embedding path is reproducible enough to regenerate the same class of dataset later
-- document which embedding model is used and what assumptions that choice introduces
+- keep random vectors only as an explicit structural/local smoke-test mode in docs and operator practice
+- validate a few local semantic queries against the new embedding-backed path before treating it as ready for S3 promotion
+- keep documenting the active embedding model and the 1536-dimension assumption anywhere operators will need to audit it
+- preserve the source parquet plus manifest workflow as the canonical provenance trail for regenerated datasets
 
 Desired seed/eval dataset properties:
 
@@ -24,12 +33,12 @@ Desired seed/eval dataset properties:
 - realistic combinations of `timestamp`, `city_code`, and `doc_type` so filtered retrieval can be tested meaningfully
 - a small, stable evaluation corpus that is cheap to regenerate and easy to inspect manually
 
-Concrete implementation ideas:
+Implemented in code:
 
-- extend `scripts/seed.py` with a real embedding mode that computes vectors from `text_content`
-- keep a fast local mode for development and CI, but make the semantically meaningful mode the default for demos
-- separate "dataset generation" from "embedding generation" if that makes retries and caching easier
-- add a small manifest describing the generated dataset, embedding model, and generation parameters
+- `scripts/seed.py` computes vectors from `text_content` in `openai` mode
+- `random` remains the explicit smoke-mode path
+- dataset generation and embedding generation are now distinct phases in the seed pipeline
+- the seed path emits a manifest describing the generated dataset and embedding model
 
 This is the step after which embeddings become correct enough to support meaningful deployment validation.
 

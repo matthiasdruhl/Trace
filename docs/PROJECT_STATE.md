@@ -1,6 +1,6 @@
 # Trace project state
 
-Last updated: 2026-04-21
+Last updated: 2026-04-22
 
 ## Summary
 
@@ -43,15 +43,18 @@ Implemented in `mcp-bridge/`:
 
 Implemented in `scripts/seed.py`:
 
-- synthetic compliance dataset generation
-- Lance dataset creation and IVF-PQ indexing
+- deterministic synthetic compliance dataset generation
+- explicit `openai` and `random` embedding modes
+- source parquet and seed-manifest output
+- Lance dataset creation and IVF-PQ indexing when the dataset is large enough to train it
 - local output generation
 - optional S3 staging upload and promotion flow
 - CLI validation and local disk-space preflight checks
 
-Important current limitation:
+Important current behavior:
 
-- `scripts/seed.py` still generates random vectors rather than real semantic embeddings, so it remains suitable for smoke/infrastructure datasets rather than the future eval/demo dataset
+- `openai` mode is now the default path for local eval/demo dataset generation and uses `text-embedding-3-small` at `1536` dimensions
+- `random` mode remains available as an explicit smoke/infrastructure path and should not be used as evidence of semantic retrieval quality
 
 ### Deployed proof path
 
@@ -79,7 +82,6 @@ Implemented in `template.yaml`:
 ## What is not fully done
 
 - There is no user-facing web application in this repository
-- The synthetic seed script still uses random vectors rather than a production embedding pipeline
 - A new embedding-backed eval dataset has not yet been uploaded to `s3://trace-vault/trace/eval/lance/`
 - The deployed stack has not yet been repointed away from the current smoke dataset at `s3://trace-vault/uber_audit.lance/`
 - A real embedding-backed S3 validation run has not yet been recorded

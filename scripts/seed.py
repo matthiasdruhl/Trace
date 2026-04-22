@@ -1,9 +1,14 @@
 """
-Generate synthetic Uber Compliance & Audit records per docs/DATA_SPEC.md:
-100k rows in Pandas, write a local Lance table with an IVF-PQ vector index,
-then optionally upload to a unique staging prefix under S3 (--no-skip-upload and --bucket).
-Uploads are ordered so .manifest/.txn objects are last. Default success path describes a candidate URI;
-use --promote-to-live to copy into the live prefix (manifests copied last), then remove staging.
+Generate deterministic synthetic Trace records, write a local Lance table with an
+IVF-PQ vector index, and optionally upload that dataset to S3.
+
+The seed pipeline now has two explicit vector-generation modes:
+
+- `openai` (default): real embeddings generated from `text_content`
+- `random`: deterministic smoke/infra vectors only
+
+The pipeline also writes a source parquet file before embedding and a JSON
+manifest describing the resulting dataset.
 
 Dependencies: pip install -r scripts/requirements.txt -c scripts/constraints.txt
 """
@@ -11,12 +16,17 @@ Dependencies: pip install -r scripts/requirements.txt -c scripts/constraints.txt
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import os
 import re
 import shutil
 import sys
 import time
+import urllib.error
+import urllib.request
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -24,7 +34,6 @@ import lancedb
 import numpy as np
 import pandas as pd
 
-# --- Constants from DATA_SPEC.md ---
 
 CITY_CODES = [
     "NYC-TLC",
@@ -46,6 +55,20 @@ DOC_TYPES = [
 ]
 
 VECTOR_DIM = 1536
+DEFAULT_ROWS = 2_000
+DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"
+DEFAULT_EMBEDDING_BATCH_SIZE = 32
+DEFAULT_OPENAI_TIMEOUT_SEC = 30.0
+
+OPENAI_EMBEDDING_MODELS: dict[str, int] = {
+    "text-embedding-3-small": 1536,
+    "text-embedding-ada-002": 1536,
+    "text-embedding-3-large": 3072,
+}
+
+OPENAI_EMBEDDINGS_URL = "https://api.openai.com/v1/embeddings"
+_OPENAI_MAX_ATTEMPTS = 5
+_OPENAI_BACKOFF_SEC = (1.0, 2.0, 4.0, 8.0)
 
 INSURANCE_PROVIDERS = [
     "Liberty Mutual Commercial",
@@ -56,8 +79,7 @@ INSURANCE_PROVIDERS = [
     "Chubb Commercial Auto",
 ]
 
-# Boilerplate used to expand template snippets to 200–500 words.
-FILLER_SENTENCES = [
+GENERIC_FILLER_SENTENCES = [
     "The jurisdiction requires contemporaneous upload of corrected filings within the statutory window.",
     "Telematics retention policies must align with local data minimization rules and rider privacy expectations.",
     "Escalation to tier-2 enforcement may apply if remediation milestones are missed.",
@@ -76,6 +98,145 @@ FILLER_SENTENCES = [
 ]
 
 
+@dataclass(frozen=True)
+class Scenario:
+    topic: str
+    positive_doc_type: str
+    near_miss_doc_type: str
+    city_codes: tuple[str, ...]
+    positive_templates: tuple[str, ...]
+    near_miss_templates: tuple[str, ...]
+    detail_sentences: tuple[str, ...]
+
+
+SCENARIOS: tuple[Scenario, ...] = (
+    Scenario(
+        topic="insurance_lapse",
+        positive_doc_type="Insurance_Lapse_Report",
+        near_miss_doc_type="City_Permit_Renewal",
+        city_codes=("NYC-TLC", "SF-CPUC", "CHI-BACP", "MEX-SEMOVI"),
+        positive_templates=(
+            "Coverage for fleet vehicle VIN {vin} in {city_code} lapsed on {event_date}, and the platform suspended driver {driver_id} until a new certificate from {provider} is uploaded.",
+            "An insurance compliance monitor in {city_code} flagged driver {driver_id} after commercial auto coverage from {provider} expired on {event_date} for vehicle VIN {vin}.",
+            "A regulator-facing lapse report notes that vehicle VIN {vin} lost active commercial coverage with {provider} on {event_date}, forcing a temporary hold on driver {driver_id} in {city_code}.",
+        ),
+        near_miss_templates=(
+            "Permit renewal staff in {city_code} confirmed that driver {driver_id} uploaded a fresh insurance certificate from {provider} on {event_date}; the keywords mention coverage documents, but there was no lapse or suspension.",
+            "A permit checklist for VIN {vin} in {city_code} references insurance endorsements from {provider}, yet the record documents a successful renewal package rather than a policy expiration for driver {driver_id}.",
+        ),
+        detail_sentences=(
+            "The compliance queue compares cancellation timestamps against the city's grace-period rules before any account hold is lifted.",
+            "Operators must attach the reinstatement binder and update downstream audit logs before the vehicle can return to service.",
+            "Near-duplicate notices often share insurer names and certificate language, which makes this concept useful for semantic evaluation.",
+        ),
+    ),
+    Scenario(
+        topic="vehicle_inspection_overdue",
+        positive_doc_type="Vehicle_Inspection_Audit",
+        near_miss_doc_type="Safety_Incident_Log",
+        city_codes=("NYC-TLC", "LON-TfL", "PAR-VTC", "SAO-DTP"),
+        positive_templates=(
+            "An audit in {city_code} found that vehicle VIN {vin} missed its mandated inspection window, leaving driver {driver_id} with overdue corrective paperwork due by {event_date}.",
+            "Inspectors in {city_code} marked VIN {vin} as overdue for a required safety inspection and opened an audit task for driver {driver_id} with a filing deadline of {event_date}.",
+            "The compliance archive records a failed vehicle-inspection audit for VIN {vin}; driver {driver_id} must submit mechanic sign-off documents in {city_code} before {event_date}.",
+        ),
+        near_miss_templates=(
+            "A safety incident follow-up in {city_code} references a post-collision inspection of VIN {vin}, but the record is an incident narrative for driver {driver_id}, not an overdue audit finding.",
+            "Investigators logged inspection photos for VIN {vin} after an operational event in {city_code}; the text mentions inspections repeatedly, yet it is a safety incident case rather than an audit backlog item for driver {driver_id}.",
+        ),
+        detail_sentences=(
+            "The city workflow checks odometer snapshots, third-party mechanic attestation, and decal visibility before closing the audit.",
+            "These records are intentionally paired with near-miss incident notes that reuse words like inspection, mechanic, and photos.",
+            "A missed inspection window can trigger temporary throttling even when the vehicle remains otherwise active in the fleet ledger.",
+        ),
+    ),
+    Scenario(
+        topic="background_flag",
+        positive_doc_type="Driver_Background_Flag",
+        near_miss_doc_type="Data_Privacy_Request",
+        city_codes=("CHI-BACP", "SF-CPUC", "PAR-VTC", "LON-TfL"),
+        positive_templates=(
+            "A re-screening vendor raised a driver background flag for {driver_id} in {city_code} after a newly surfaced court record required manual review before {event_date}.",
+            "Compliance staff in {city_code} escalated driver {driver_id} when a periodic background check returned a match that must be adjudicated before access is restored on {event_date}.",
+            "The archive shows a background-review hold on driver {driver_id}; analysts in {city_code} must resolve the flagged screening result and document the outcome by {event_date}.",
+        ),
+        near_miss_templates=(
+            "A privacy-export request in {city_code} asks for the screening history associated with driver {driver_id}; the text references background checks, but it concerns disclosure access rather than an active eligibility flag.",
+            "Driver {driver_id} submitted a data-access request for past screening results in {city_code}. The wording overlaps with background-review terminology, yet there is no compliance hold or adjudication task.",
+        ),
+        detail_sentences=(
+            "Manual reviewers distinguish new actionable findings from stale records that were already cleared during a prior adjudication cycle.",
+            "These narratives intentionally share screening vocabulary with privacy requests so keyword overlap alone is a weak signal.",
+            "Jurisdictions vary on how quickly a temporary hold must be communicated to the driver after the screening vendor responds.",
+        ),
+    ),
+    Scenario(
+        topic="permit_renewal_gap",
+        positive_doc_type="City_Permit_Renewal",
+        near_miss_doc_type="Vehicle_Inspection_Audit",
+        city_codes=("NYC-TLC", "MEX-SEMOVI", "SAO-DTP", "PAR-VTC"),
+        positive_templates=(
+            "Permit coordinators in {city_code} warned that driver {driver_id} had not completed a city permit renewal for VIN {vin} before the {event_date} deadline.",
+            "The regulatory archive records an incomplete permit renewal in {city_code}; driver {driver_id} must upload fee confirmation and registration details for VIN {vin} by {event_date}.",
+            "A city-permit renewal reminder for driver {driver_id} in {city_code} notes that VIN {vin} cannot remain active unless the renewal packet is finalized before {event_date}.",
+        ),
+        near_miss_templates=(
+            "An inspection audit in {city_code} mentions missing permit decals on VIN {vin}, but the case centers on inspection evidence for driver {driver_id} rather than an unfinished renewal filing.",
+            "Mechanics photographed permit stickers during an inspection follow-up for VIN {vin} in {city_code}; the record contains permit language but is not a renewal backlog item for driver {driver_id}.",
+        ),
+        detail_sentences=(
+            "Operators must reconcile fee receipts, vehicle registration, and decal serial numbers before a renewal can be marked complete.",
+            "Permit-oriented terms often appear inside inspection records, which makes these near misses useful for judging semantic rank quality.",
+            "The renewal workflow is deliberately paired with realistic city and vehicle metadata so filtered retrieval remains meaningful.",
+        ),
+    ),
+    Scenario(
+        topic="safety_incident",
+        positive_doc_type="Safety_Incident_Log",
+        near_miss_doc_type="Vehicle_Inspection_Audit",
+        city_codes=("SF-CPUC", "CHI-BACP", "LON-TfL", "SAO-DTP"),
+        positive_templates=(
+            "A rider safety incident in {city_code} alleges that driver {driver_id} deviated from the expected route and triggered in-app safety tooling during a trip involving VIN {vin} on {event_date}.",
+            "Investigators in {city_code} logged a safety incident after driver {driver_id} reported an unauthorized passenger and route deviation for VIN {vin} on {event_date}.",
+            "The safety archive for {city_code} records an incident review tied to driver {driver_id}, VIN {vin}, and a trip on {event_date} that required escalation to a trust-and-safety analyst.",
+        ),
+        near_miss_templates=(
+            "An inspection audit in {city_code} references safety checks, route logs, and VIN {vin}, but the record documents workshop verification steps rather than a rider or driver incident involving {driver_id}.",
+            "Fleet auditors in {city_code} reviewed safety equipment and telematics for VIN {vin}; the wording overlaps with incident investigations, yet no active safety complaint was filed against driver {driver_id}.",
+        ),
+        detail_sentences=(
+            "Investigators correlate app telemetry, rider outreach, and any emergency feature usage before closing the case.",
+            "Near-miss inspection narratives intentionally reuse route, safety, and telematics language without describing an actual trip incident.",
+            "This concept is designed to test both semantic similarity and the value of metadata filters such as city and doc type.",
+        ),
+    ),
+    Scenario(
+        topic="privacy_request",
+        positive_doc_type="Data_Privacy_Request",
+        near_miss_doc_type="Driver_Background_Flag",
+        city_codes=("LON-TfL", "PAR-VTC", "MEX-SEMOVI", "NYC-TLC"),
+        positive_templates=(
+            "A privacy request in {city_code} asks the operator to delete rider-linked records associated with driver {driver_id} and VIN {vin} before the statutory response date of {event_date}.",
+            "The archive shows a data-privacy deletion workflow in {city_code}; analysts must locate records tied to driver {driver_id} and confirm erasure milestones by {event_date}.",
+            "Compliance staff in {city_code} opened a privacy case for driver {driver_id}, requiring a response on {event_date} about retained trip, support, and telematics data for VIN {vin}.",
+        ),
+        near_miss_templates=(
+            "A driver-screening case in {city_code} mentions record retention and disclosure timing for driver {driver_id}, but the active work is a background-review hold rather than a deletion or access request.",
+            "Background-review analysts in {city_code} documented how long screening records for driver {driver_id} must be retained. The vocabulary overlaps with privacy rules, yet no data-subject request was filed.",
+        ),
+        detail_sentences=(
+            "The response package usually includes retention exceptions, search-scope notes, and escalation timestamps for any records that cannot be deleted immediately.",
+            "These cases intentionally overlap with background and compliance language so a pure keyword baseline will often over-select the wrong rows.",
+            "Privacy deadlines differ by jurisdiction, making city metadata important for filtered retrieval sanity checks.",
+        ),
+    ),
+)
+
+
+class EmbeddingGenerationError(RuntimeError):
+    """Embedding generation failed or returned malformed data."""
+
+
 def _random_vin(rng: np.random.Generator) -> str:
     alphabet = "ABCDEFGHJKLMNPRSTUVWXYZ0123456789"
     return "".join(rng.choice(list(alphabet), size=17))
@@ -85,95 +246,320 @@ def _random_driver_id(rng: np.random.Generator) -> str:
     return f"DRV-{rng.integers(0, 10**9):09d}"
 
 
+def _random_case_id(rng: np.random.Generator) -> str:
+    return f"CASE-{rng.integers(0, 10**8):08d}"
+
+
 def _random_date_str(rng: np.random.Generator) -> str:
-    y = rng.integers(2021, 2027)
-    m = rng.integers(1, 13)
-    d = rng.integers(1, 29)
+    y = int(rng.integers(2021, 2027))
+    m = int(rng.integers(1, 13))
+    d = int(rng.integers(1, 29))
     return f"{y:04d}-{m:02d}-{d:02d}"
 
 
-def _template_body(
-    kind: int,
+def _random_retention_days(rng: np.random.Generator) -> int:
+    return int(rng.integers(30, 731))
+
+
+def _stable_incident_id(seed: int, row_index: int) -> str:
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"trace-seed:{seed}:{row_index}"))
+
+
+def _row_rng(seed: int, row_index: int) -> np.random.Generator:
+    digest = hashlib.sha256(f"{seed}:{row_index}".encode("utf-8")).digest()
+    seed_int = int.from_bytes(digest[:8], byteorder="big", signed=False)
+    return np.random.default_rng(seed_int)
+
+
+def _pick_one(options: tuple[str, ...] | list[str], rng: np.random.Generator) -> str:
+    return str(options[int(rng.integers(0, len(options)))])
+
+
+def _record_timestamp(rng: np.random.Generator) -> pd.Timestamp:
+    start = pd.Timestamp("2021-01-01T00:00:00Z")
+    end = pd.Timestamp("2026-04-01T00:00:00Z")
+    span_seconds = int((end - start).total_seconds())
+    offset = int(rng.integers(0, span_seconds + 1))
+    return start + pd.to_timedelta(offset, unit="s")
+
+
+def _render_record_text(
+    scenario: Scenario,
+    *,
     city_code: str,
     doc_type: str,
     rng: np.random.Generator,
+    near_miss: bool,
 ) -> str:
-    vin = _random_vin(rng)
-    driver_id = _random_driver_id(rng)
-    provider = rng.choice(INSURANCE_PROVIDERS)
-    date = _random_date_str(rng)
-    fleet_over = rng.integers(3, 500)
-
-    if kind == 0:
-        return (
-            f"URGENT NOTIFICATION: Vehicle VIN {vin} operating in {city_code} detected with a "
-            f"lapse in commercial liability insurance. Coverage dropped by {provider} on {date}. "
-            f"Driver ID {driver_id} has been temporarily waitlisted pending documentation upload. "
-            f"Related document category: {doc_type}."
-        )
-    if kind == 1:
-        return (
-            f"Quarterly audit for {city_code} mandates a maximum vehicle age of 10 years. "
-            f"Audit flagged {fleet_over} vehicles in the active fleet exceeding this limit. "
-            f"Corrective action plan required by Q3 to avoid tier-2 fines. "
-            f"Cross-reference filing: {doc_type}."
-        )
-    return (
-        f"Rider report filed against Driver ID {driver_id} regarding an unauthorized passenger in "
-        f"the vehicle during an active UberX trip in {city_code}. Telematics indicate route deviation. "
-        f"Case classification under {doc_type}."
-    )
-
-
-def _generate_text_content(
-    city_code: str,
-    doc_type: str,
-    rng: np.random.Generator,
-) -> str:
-    """200–500 words: DATA_SPEC templates plus randomized compliance filler."""
-    target_words = int(rng.integers(200, 501))
-    kind = int(rng.integers(0, 3))
-    parts = [_template_body(kind, city_code, doc_type, rng)]
+    templates = scenario.near_miss_templates if near_miss else scenario.positive_templates
+    target_words = int(rng.integers(200, 321))
+    context = {
+        "case_id": _random_case_id(rng),
+        "city_code": city_code,
+        "doc_type": doc_type,
+        "driver_id": _random_driver_id(rng),
+        "event_date": _random_date_str(rng),
+        "provider": _pick_one(INSURANCE_PROVIDERS, rng),
+        "retention_days": _random_retention_days(rng),
+        "vin": _random_vin(rng),
+    }
+    parts = [_pick_one(templates, rng).format(**context)]
     word_count = len(parts[0].split())
+    detail_pool = list(scenario.detail_sentences) + GENERIC_FILLER_SENTENCES
     while word_count < target_words:
-        parts.append(rng.choice(FILLER_SENTENCES))
-        word_count += len(parts[-1].split())
-    full = " ".join(parts)
-    words = full.split()
+        sentence = _pick_one(detail_pool, rng)
+        parts.append(sentence)
+        word_count += len(sentence.split())
+    words = " ".join(parts).split()
     return " ".join(words[:target_words])
 
 
-def build_dataframe(n_rows: int, seed: int) -> pd.DataFrame:
-    rng = np.random.default_rng(seed)
-    start = pd.Timestamp("2021-01-01")
-    end = pd.Timestamp("2026-04-01")
-    span_seconds = (end - start).total_seconds()
-    random_seconds = rng.uniform(0.0, span_seconds, size=n_rows)
-    timestamps = start + pd.to_timedelta(random_seconds, unit="s")
+def build_source_dataframe(n_rows: int, seed: int) -> pd.DataFrame:
+    records: list[dict[str, object]] = []
+    for row_index in range(n_rows):
+        rng = _row_rng(seed, row_index)
+        scenario = SCENARIOS[int(rng.integers(0, len(SCENARIOS)))]
+        near_miss = bool(rng.integers(0, 100) < 30)
+        city_code = _pick_one(scenario.city_codes, rng)
+        doc_type = (
+            scenario.near_miss_doc_type if near_miss else scenario.positive_doc_type
+        )
+        text = _render_record_text(
+            scenario,
+            city_code=city_code,
+            doc_type=doc_type,
+            rng=rng,
+            near_miss=near_miss,
+        )
+        records.append(
+            {
+                "incident_id": _stable_incident_id(seed, row_index),
+                "timestamp": _record_timestamp(rng),
+                "city_code": city_code,
+                "doc_type": doc_type,
+                "text_content": text,
+            }
+        )
+    return pd.DataFrame.from_records(records)
 
-    city_codes = rng.choice(CITY_CODES, size=n_rows)
-    doc_types = rng.choice(DOC_TYPES, size=n_rows)
 
-    texts = [
-        _generate_text_content(str(city_codes[i]), str(doc_types[i]), rng)
-        for i in range(n_rows)
-    ]
+def save_source_dataframe(df: pd.DataFrame, output_dir: Path, table_name: str) -> Path:
+    path = source_parquet_path(output_dir, table_name)
+    df.to_parquet(path, index=False)
+    return path
 
-    incident_ids = [str(uuid.uuid4()) for _ in range(n_rows)]
 
-    vecs = rng.uniform(-1.0, 1.0, size=(n_rows, VECTOR_DIM)).astype(np.float32)
-    vector_col = [vecs[i] for i in range(n_rows)]
+def _random_vectors(n_rows: int, *, seed: int, dimensions: int) -> list[np.ndarray]:
+    rng = np.random.default_rng(seed ^ 0x5EED5EED)
+    vecs = rng.uniform(-1.0, 1.0, size=(n_rows, dimensions)).astype(np.float32)
+    return [vecs[i] for i in range(n_rows)]
 
-    return pd.DataFrame(
-        {
-            "incident_id": incident_ids,
-            "timestamp": timestamps,
-            "city_code": city_codes,
-            "doc_type": doc_types,
-            "text_content": texts,
-            "vector": vector_col,
-        }
+
+def _embedding_batch_chunks(texts: list[str], batch_size: int) -> list[list[str]]:
+    return [texts[i : i + batch_size] for i in range(0, len(texts), batch_size)]
+
+
+def _openai_urlopen(req: urllib.request.Request, timeout: float):
+    return urllib.request.urlopen(req, timeout=timeout)
+
+
+def _is_transient_openai_error(exc: BaseException) -> bool:
+    if isinstance(exc, urllib.error.HTTPError):
+        return exc.code == 429 or 500 <= exc.code <= 599
+    if isinstance(exc, urllib.error.URLError):
+        return True
+    return False
+
+
+def _read_http_error_body(exc: urllib.error.HTTPError) -> str:
+    try:
+        return exc.read().decode("utf-8", errors="replace")
+    except Exception:
+        return ""
+
+
+def _request_openai_embeddings(
+    texts: list[str],
+    *,
+    api_key: str,
+    model: str,
+    timeout_sec: float,
+) -> list[list[float]]:
+    payload = json.dumps({"model": model, "input": texts}).encode("utf-8")
+    req = urllib.request.Request(
+        OPENAI_EMBEDDINGS_URL,
+        data=payload,
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
     )
+    with _openai_urlopen(req, timeout_sec) as resp:
+        body = resp.read().decode("utf-8")
+    try:
+        parsed = json.loads(body)
+    except json.JSONDecodeError as exc:
+        raise EmbeddingGenerationError(
+            f"OpenAI embeddings returned invalid JSON: {exc}"
+        ) from exc
+
+    if not isinstance(parsed, dict) or not isinstance(parsed.get("data"), list):
+        raise EmbeddingGenerationError(
+            "OpenAI embeddings response missing data list."
+        )
+
+    items = parsed["data"]
+    if len(items) != len(texts):
+        raise EmbeddingGenerationError(
+            f"OpenAI embeddings returned {len(items)} vectors for {len(texts)} inputs."
+        )
+
+    indices_present = ["index" in item for item in items if isinstance(item, dict)]
+    if len(indices_present) != len(items):
+        raise EmbeddingGenerationError("OpenAI embeddings response items must be objects.")
+
+    if any(indices_present) and not all(indices_present):
+        raise EmbeddingGenerationError(
+            "OpenAI embeddings response mixed indexed and non-indexed items."
+        )
+
+    vectors: list[list[float]]
+    if all(indices_present):
+        vectors = [None] * len(items)  # type: ignore[list-item]
+        seen_indices: set[int] = set()
+        for item in items:
+            idx = item["index"]
+            if not isinstance(idx, int):
+                raise EmbeddingGenerationError(
+                    f"OpenAI embeddings response returned non-integer index {idx!r}."
+                )
+            if idx < 0 or idx >= len(texts):
+                raise EmbeddingGenerationError(
+                    f"OpenAI embeddings response returned out-of-range index {idx}."
+                )
+            if idx in seen_indices:
+                raise EmbeddingGenerationError(
+                    f"OpenAI embeddings response returned duplicate index {idx}."
+                )
+            if not isinstance(item.get("embedding"), list):
+                raise EmbeddingGenerationError(
+                    f"OpenAI embeddings response missing embedding at index {idx}."
+                )
+            vectors[idx] = item["embedding"]
+            seen_indices.add(idx)
+        if any(vector is None for vector in vectors):
+            raise EmbeddingGenerationError(
+                "OpenAI embeddings response did not include embeddings for every input index."
+            )
+        return vectors
+
+    if len(items) > 1:
+        raise EmbeddingGenerationError(
+            "OpenAI embeddings response omitted index for a batched request; cannot safely align embeddings to inputs."
+        )
+
+    vectors = []
+    for idx, item in enumerate(items):
+        if not isinstance(item.get("embedding"), list):
+            raise EmbeddingGenerationError(
+                f"OpenAI embeddings response missing embedding at index {idx}."
+            )
+        vectors.append(item["embedding"])
+    return vectors
+
+
+def generate_openai_embeddings(
+    texts: list[str],
+    *,
+    api_key: str,
+    model: str,
+    expected_dim: int,
+    batch_size: int = DEFAULT_EMBEDDING_BATCH_SIZE,
+    timeout_sec: float = DEFAULT_OPENAI_TIMEOUT_SEC,
+) -> list[np.ndarray]:
+    if batch_size < 1:
+        raise ValueError("batch_size must be positive")
+    if not api_key.strip():
+        raise EmbeddingGenerationError(
+            "OPENAI_API_KEY is required for --embedding-mode openai."
+        )
+
+    vectors: list[np.ndarray] = []
+    for batch in _embedding_batch_chunks(texts, batch_size):
+        last_error: BaseException | None = None
+        for attempt in range(1, _OPENAI_MAX_ATTEMPTS + 1):
+            try:
+                raw_vectors = _request_openai_embeddings(
+                    batch,
+                    api_key=api_key,
+                    model=model,
+                    timeout_sec=timeout_sec,
+                )
+                for idx, vector in enumerate(raw_vectors):
+                    if len(vector) != expected_dim:
+                        raise EmbeddingGenerationError(
+                            f"Embedding at batch index {idx} has length {len(vector)}; expected {expected_dim}."
+                        )
+                    vectors.append(np.asarray(vector, dtype=np.float32))
+                break
+            except Exception as exc:  # pragma: no cover - exercised via tests
+                last_error = exc
+                if not _is_transient_openai_error(exc) or attempt >= _OPENAI_MAX_ATTEMPTS:
+                    if isinstance(exc, urllib.error.HTTPError):
+                        body = _read_http_error_body(exc)
+                        raise EmbeddingGenerationError(
+                            f"OpenAI embeddings failed with HTTP {exc.code}. {body}".strip()
+                        ) from exc
+                    if isinstance(exc, urllib.error.URLError):
+                        raise EmbeddingGenerationError(
+                            f"OpenAI embeddings request failed: {exc.reason}"
+                        ) from exc
+                    if isinstance(exc, EmbeddingGenerationError):
+                        raise
+                    raise EmbeddingGenerationError(
+                        f"OpenAI embeddings request failed: {exc}"
+                    ) from exc
+                delay = _OPENAI_BACKOFF_SEC[attempt - 1]
+                time.sleep(delay)
+        else:  # pragma: no cover - defensive
+            raise EmbeddingGenerationError(
+                f"OpenAI embeddings request failed after retries: {last_error}"
+            )
+    return vectors
+
+
+def generate_vectors(
+    texts: list[str],
+    *,
+    embedding_mode: str,
+    seed: int,
+    model: str,
+    api_key: str | None,
+) -> list[np.ndarray]:
+    if embedding_mode == "random":
+        return _random_vectors(len(texts), seed=seed, dimensions=VECTOR_DIM)
+    if embedding_mode != "openai":
+        raise ValueError(f"Unsupported embedding mode: {embedding_mode}")
+    return generate_openai_embeddings(
+        texts,
+        api_key=api_key or "",
+        model=model,
+        expected_dim=VECTOR_DIM,
+    )
+
+
+def build_vectorized_dataframe(
+    source_df: pd.DataFrame,
+    vectors: list[np.ndarray],
+) -> pd.DataFrame:
+    if len(source_df) != len(vectors):
+        raise ValueError(
+            f"Vector count {len(vectors)} does not match row count {len(source_df)}."
+        )
+    df = source_df.copy()
+    df["vector"] = list(vectors)
+    return df
 
 
 def write_lance_table(
@@ -192,22 +578,189 @@ def write_lance_table(
     table = db.create_table(table_name, df, mode=mode)
 
     n = len(df)
-    # DATA_SPEC guidance: ~ num_rows / 4096 partitions; sub-vectors ~ dim / 8.
-    num_partitions = max(4, min(256, max(1, n // 4096)))
+    if n < 256:
+        return output_dir / f"{table_name}.lance"
+
+    suggested_partitions = max(1, n // 4096)
+    max_trainable_partitions = max(1, n - 1)
+    num_partitions = min(256, max_trainable_partitions, suggested_partitions)
     num_sub_vectors = VECTOR_DIM // 8
 
-    table.create_index(
-        vector_column_name="vector",
-        index_type="IVF_PQ",
-        metric="l2",
-        num_partitions=num_partitions,
-        num_sub_vectors=num_sub_vectors,
-    )
+    try:
+        table.create_index(
+            vector_column_name="vector",
+            index_type="IVF_PQ",
+            metric="l2",
+            num_partitions=num_partitions,
+            num_sub_vectors=num_sub_vectors,
+        )
+    except Exception as exc:
+        if not _is_untrainable_ivf_pq_error(exc):
+            raise
+        print(
+            f"Warning: Skipping IVF_PQ index; leaving table unindexed ({_exception_summary(exc)}).",
+            file=sys.stderr,
+        )
     return output_dir / f"{table_name}.lance"
 
 
+def seed_manifest_path(output_dir: Path, table_name: str) -> Path:
+    return output_dir / f"{table_name}.seed-manifest.json"
+
+
+def source_parquet_path(output_dir: Path, table_name: str) -> Path:
+    return output_dir / f"{table_name}.source.parquet"
+
+
+def lance_dataset_path(output_dir: Path, table_name: str) -> Path:
+    return output_dir / f"{table_name}.lance"
+
+
+def local_artifact_paths(output_dir: Path, table_name: str) -> dict[str, Path]:
+    return {
+        "source parquet": source_parquet_path(output_dir, table_name),
+        "seed manifest": seed_manifest_path(output_dir, table_name),
+        "Lance table": lance_dataset_path(output_dir, table_name),
+    }
+
+
+def build_seed_manifest(
+    *,
+    table_name: str,
+    rows: int,
+    seed: int,
+    embedding_mode: str,
+    embedding_model: str | None,
+    vector_dimension: int,
+    source_parquet_path: Path,
+    lance_dataset_path: Path,
+    candidate_uri: str | None,
+    live_uri: str | None,
+    promote_to_live: bool,
+) -> dict[str, object]:
+    return {
+        "table_name": table_name,
+        "row_count": rows,
+        "seed": seed,
+        "embedding_mode": embedding_mode,
+        "embedding_model": embedding_model,
+        "vector_dimension": vector_dimension,
+        "source_parquet_path": str(source_parquet_path),
+        "lance_dataset_path": str(lance_dataset_path),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "upload_candidate_uri": None,
+        "upload_live_uri": None,
+        "promote_to_live": False,
+        "requested_upload_candidate_uri": candidate_uri,
+        "requested_upload_live_uri": live_uri,
+        "requested_promote_to_live": promote_to_live,
+    }
+
+
+def write_seed_manifest(path: Path, manifest: dict[str, object]) -> None:
+    path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def update_seed_manifest_publication_state(
+    path: Path,
+    *,
+    candidate_uri: str | None = None,
+    live_uri: str | None = None,
+    promote_to_live: bool | None = None,
+) -> None:
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    if candidate_uri is not None:
+        manifest["upload_candidate_uri"] = candidate_uri
+    if live_uri is not None:
+        manifest["upload_live_uri"] = live_uri
+    if promote_to_live is not None:
+        manifest["promote_to_live"] = promote_to_live
+    write_seed_manifest(path, manifest)
+
+
+def build_seed_artifacts(
+    *,
+    rows: int,
+    output_dir: Path,
+    table_name: str,
+    seed: int,
+    write_mode: str,
+    embedding_mode: str,
+    embedding_model: str,
+    api_key: str | None,
+    candidate_uri: str | None = None,
+    live_uri: str | None = None,
+    promote_to_live: bool = False,
+) -> tuple[pd.DataFrame, Path, Path]:
+    source_df = build_source_dataframe(rows, seed)
+    source_path = save_source_dataframe(source_df, output_dir, table_name)
+    vectors = generate_vectors(
+        list(source_df["text_content"]),
+        embedding_mode=embedding_mode,
+        seed=seed,
+        model=embedding_model,
+        api_key=api_key,
+    )
+    vector_df = build_vectorized_dataframe(source_df, vectors)
+    lance_dir = write_lance_table(vector_df, output_dir, table_name, mode=write_mode)
+    manifest = build_seed_manifest(
+        table_name=table_name,
+        rows=rows,
+        seed=seed,
+        embedding_mode=embedding_mode,
+        embedding_model=embedding_model if embedding_mode == "openai" else None,
+        vector_dimension=VECTOR_DIM,
+        source_parquet_path=source_path,
+        lance_dataset_path=lance_dir,
+        candidate_uri=candidate_uri,
+        live_uri=live_uri,
+        promote_to_live=promote_to_live,
+    )
+    manifest_path = seed_manifest_path(output_dir, table_name)
+    write_seed_manifest(manifest_path, manifest)
+    return vector_df, source_path, manifest_path
+
+
+def _exception_summary(exc: BaseException) -> str:
+    text = " ".join(str(part).strip() for part in exc.args if str(part).strip()).strip()
+    if not text:
+        text = str(exc).strip()
+    if not text:
+        return exc.__class__.__name__
+    return text.splitlines()[0]
+
+
+def _is_untrainable_ivf_pq_error(exc: BaseException) -> bool:
+    message = _exception_summary(exc).lower()
+    if not message:
+        return False
+
+    size_markers = (
+        "train",
+        "training",
+        "not enough",
+        "insufficient",
+        "too small",
+        "too few",
+        "requires at least",
+        "smaller than",
+        "minimum",
+    )
+    index_markers = (
+        "ivf",
+        "pq",
+        "partition",
+        "kmeans",
+        "centroid",
+        "sub-vector",
+        "subvector",
+    )
+    return any(marker in message for marker in size_markers) and any(
+        marker in message for marker in index_markers
+    )
+
+
 def _is_lance_manifest_file(path: Path) -> bool:
-    """Manifests must upload last so readers never see a new manifest before data objects exist."""
     n = path.name.lower()
     return n.endswith(".manifest") or n.endswith(".txn")
 
@@ -223,7 +776,6 @@ def _staging_run_id() -> str:
 
 
 def get_aws_identity_for_upload() -> tuple[str, str, str | None]:
-    """Resolve caller identity via STS (upload path only). Exits on credential/config errors."""
     import boto3
     from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError
 
@@ -253,14 +805,13 @@ def print_aws_identity_report(
     print("--- AWS Identity Report ---")
     print(f"  Account ID:      {account_id}")
     print(f"  Assumed role / user ARN: {caller_arn}")
-    print(f"  Region:          {region or '(not set — check AWS_REGION / config)'}")
+    print(f"  Region:          {region or '(not set - check AWS_REGION / config)'}")
     print(f"  Target bucket:   {target_bucket}")
     print("---------------------------")
     print()
 
 
 def upload_confirmation_bypass(yes_flag: bool) -> bool:
-    """Skip interactive prompt when --yes or CI=true (or similar)."""
     if yes_flag:
         return True
     ci = os.environ.get("CI", "").strip().lower()
@@ -279,11 +830,6 @@ def enforce_noninteractive_upload_allowance(
     allow_account: str | None,
     allow_production_bucket: bool,
 ) -> None:
-    """
-    When upload would proceed without a TTY confirmation (--yes or CI=true), require an explicit
-    allowlist match or flag so automation cannot target the wrong account with only --yes.
-    Interactive users still confirm via prompt after seeing the identity report.
-    """
     if not upload_confirmation_bypass(yes_flag):
         return
 
@@ -322,7 +868,6 @@ def enforce_noninteractive_upload_allowance(
 
 
 def confirm_upload_interactive_if_needed(yes_flag: bool) -> None:
-    """Ask before S3 upload when on a TTY; non-TTY requires bypass or exit."""
     if upload_confirmation_bypass(yes_flag):
         return
     if sys.stdin.isatty():
@@ -344,7 +889,6 @@ def confirm_upload_interactive_if_needed(yes_flag: bool) -> None:
 
 
 def preflight_s3_bucket_writable(bucket: str, probe_prefix: str) -> None:
-    """Verify bucket exists and we can write/delete an object (before heavy local work)."""
     import boto3
     from botocore.exceptions import ClientError
 
@@ -364,13 +908,11 @@ def preflight_s3_bucket_writable(bucket: str, probe_prefix: str) -> None:
         sys.exit(1)
 
 
-# S3 upload_file retries: 5 attempts, exponential backoff between tries (1s, 2s, 4s, 8s).
 _MAX_S3_UPLOAD_ATTEMPTS = 5
 _S3_UPLOAD_BACKOFF_SEC = (1.0, 2.0, 4.0, 8.0)
 
 
 def _is_transient_s3_upload_error(exc: BaseException) -> bool:
-    """Network / service issues worth retrying; not permission or bad request."""
     from botocore.exceptions import BotoCoreError, ClientError, EndpointConnectionError
 
     if isinstance(exc, EndpointConnectionError):
@@ -405,9 +947,6 @@ def upload_with_retries(
     local_path: Path,
     label: str,
 ) -> bool:
-    """
-    Wraps upload_file with exponential backoff. Returns True iff upload succeeded.
-    """
     local_path = local_path.resolve()
     for attempt in range(1, _MAX_S3_UPLOAD_ATTEMPTS + 1):
         print(f"[Retry {attempt}/{_MAX_S3_UPLOAD_ATTEMPTS}] Uploading {label}...")
@@ -428,10 +967,6 @@ def upload_with_retries(
 
 
 def cleanup_incomplete_staging(bucket: str, staging_prefix: str) -> None:
-    """
-    Best-effort delete of objects under the atomic staging prefix after upload failure or interrupt.
-    Only the staging runner prefix (.../staging/<run_id>/) is passed — never the bare dataset prefix.
-    """
     sp = staging_prefix if staging_prefix.endswith("/") else staging_prefix + "/"
     uri = f"s3://{bucket}/{sp.rstrip('/')}/"
     print(f"Cleaning up incomplete staging data from {uri}...", file=sys.stderr)
@@ -450,10 +985,6 @@ def _is_manifest_s3_key(key: str) -> bool:
 
 
 def promote_staging_to_live_prefix(bucket: str, staging_prefix: str, live_base: str) -> None:
-    """
-    Copy all objects from staging_prefix to live dataset prefix (live_base/), non-manifest keys first.
-    Same-bucket copy_object; does not delete existing live keys first (overwrites on collision).
-    """
     import boto3
     from botocore.exceptions import ClientError
 
@@ -496,7 +1027,6 @@ def promote_staging_to_live_prefix(bucket: str, staging_prefix: str, live_base: 
 
 
 def confirm_promote_to_live_if_needed(yes_flag: bool, live_uri: str) -> None:
-    """Promote requires an explicit y unless --yes (CI/automation with reviewed identity)."""
     if yes_flag:
         return
     if sys.stdin.isatty():
@@ -517,10 +1047,6 @@ def confirm_promote_to_live_if_needed(yes_flag: bool, live_uri: str) -> None:
 
 
 def enforce_promote_headless_allowance(args: argparse.Namespace) -> None:
-    """
-    Headless promote (--yes) requires the same explicit production acknowledgement as upload:
-    --allow-production-bucket or --allow-account (env-only upload allowance is not enough to promote).
-    """
     if not args.promote_to_live or not args.yes:
         return
     if args.allow_production_bucket:
@@ -535,7 +1061,6 @@ def enforce_promote_headless_allowance(args: argparse.Namespace) -> None:
 
 
 def clear_s3_prefix(bucket: str, prefix: str) -> None:
-    """Remove all object keys under prefix (idempotent; staging should be empty before a fresh run)."""
     import boto3
 
     if not prefix:
@@ -562,11 +1087,6 @@ def upload_lance_directory_to_staging_prefix(
     bucket: str,
     staging_prefix: str,
 ) -> str | None:
-    """
-    Upload the Lance dataset under staging_prefix (must end with '/').
-    Data files first with retries; manifest/.txn only if all data uploads succeed.
-    Returns the s3:// URI root for opening the dataset, or None if upload failed permanently.
-    """
     import boto3
 
     local_lance_dir = local_lance_dir.resolve()
@@ -603,7 +1123,7 @@ def upload_lance_directory_to_staging_prefix(
             file=sys.stderr,
         )
         print(
-            "Skipping manifest upload — staging prefix may be incomplete; do not promote this dataset.",
+            "Skipping manifest upload - staging prefix may be incomplete; do not promote this dataset.",
             file=sys.stderr,
         )
         return None
@@ -620,20 +1140,14 @@ def upload_lance_directory_to_staging_prefix(
 
 
 _TABLE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_]+$")
-
-# Bytes per f32 vector column cell; 2× accounts for Lance index build / shuffle overhead (conservative).
 _FLOAT32_BYTES = 4
 
 
 def estimated_lance_disk_need_bytes(rows: int, dimensions: int) -> int:
-    """
-    (rows * dimensions * 4) bytes for float32 vectors, times 2 for Lance index / shuffle overhead.
-    """
     return rows * dimensions * _FLOAT32_BYTES * 2
 
 
 def ensure_output_dir_ready(output_dir: Path) -> Path:
-    """Resolve path and create the directory tree so preflight and Lance use a concrete location."""
     out = output_dir.expanduser().resolve()
     out.mkdir(parents=True, exist_ok=True)
     return out
@@ -653,13 +1167,14 @@ def preflight_local_disk_space(rows: int, dimensions: int, output_dir: Path) -> 
         sys.exit(1)
 
 
-def warn_high_volume_rows_if_needed(rows: int, yes: bool) -> None:
+def warn_high_volume_rows_if_needed(rows: int, yes: bool, embedding_mode: str) -> None:
     if rows <= 50_000:
         return
     if yes:
         return
+    cost_note = "and OpenAI credits " if embedding_mode == "openai" else ""
     prompt = (
-        f"Large dataset detected ({rows:,} rows). This may take significant time and API credits. "
+        f"Large dataset detected ({rows:,} rows). This may take significant time {cost_note}to generate. "
         "Proceed? (y/N) "
     )
     if sys.stdin.isatty():
@@ -679,8 +1194,24 @@ def warn_high_volume_rows_if_needed(rows: int, yes: bool) -> None:
     sys.exit(1)
 
 
+def _validate_embedding_model_or_exit(model: str) -> None:
+    dim = OPENAI_EMBEDDING_MODELS.get(model)
+    if dim is None:
+        known = ", ".join(sorted(OPENAI_EMBEDDING_MODELS))
+        print(
+            f"Error: Unsupported --embedding-model {model!r}. Known models: {known}.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if dim != VECTOR_DIM:
+        print(
+            f"Error: --embedding-model {model!r} resolves to dimension {dim}, but this seed pipeline requires {VECTOR_DIM}.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
 def validate_and_normalize_seed_args(args: argparse.Namespace) -> None:
-    """Fail fast on invalid CLI input; normalize strings before Lance / S3 work."""
     if not isinstance(args.rows, int) or args.rows < 1:
         print("Error: --rows must be a positive integer.", file=sys.stderr)
         sys.exit(1)
@@ -693,6 +1224,11 @@ def validate_and_normalize_seed_args(args: argparse.Namespace) -> None:
         )
         sys.exit(1)
     args.table_name = name
+    args.embedding_model = args.embedding_model.strip()
+    if not args.embedding_model:
+        print("Error: --embedding-model must not be blank.", file=sys.stderr)
+        sys.exit(1)
+    _validate_embedding_model_or_exit(args.embedding_model)
 
     if args.bucket is not None:
         args.bucket = args.bucket.strip()
@@ -721,33 +1257,58 @@ def validate_and_normalize_seed_args(args: argparse.Namespace) -> None:
             sys.exit(1)
 
 
+def resolve_openai_api_key_or_exit(embedding_mode: str) -> str | None:
+    if embedding_mode != "openai":
+        return None
+    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    if api_key:
+        return api_key
+    print(
+        "Error: OPENAI_API_KEY is required for --embedding-mode openai.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+
 def resolve_write_mode_or_exit(
     output_dir: Path,
     table_name: str,
     *,
     force: bool,
 ) -> str:
-    """
-    Ensure we do not clobber an existing table without --force.
-    Call before expensive data generation. Returns 'create' or 'overwrite' for create_table(..., mode=...).
-    """
     output_dir.mkdir(parents=True, exist_ok=True)
-    db = lancedb.connect(str(output_dir))
-    exists = table_name in db.table_names()
-    if exists and not force:
+    artifacts = local_artifact_paths(output_dir, table_name)
+    existing_artifacts = [
+        f"{label} ({path.name})" for label, path in artifacts.items() if path.exists()
+    ]
+    if existing_artifacts and not force:
         print(
-            f"Error: Table '{table_name}' already exists in {output_dir}. Use --force to overwrite.",
+            "Error: Local seed artifacts already exist for "
+            f"'{table_name}' in {output_dir}: {', '.join(existing_artifacts)}. "
+            "Use --force to regenerate them.",
             file=sys.stderr,
         )
         sys.exit(1)
-    if exists and force:
+
+    db = lancedb.connect(str(output_dir))
+    if hasattr(db, "list_tables"):
+        existing_tables = db.list_tables()
+    else:  # pragma: no cover - compatibility with older lancedb versions
+        existing_tables = db.table_names()
+    table_exists = table_name in existing_tables or artifacts["Lance table"].exists()
+    if table_exists and force:
         return "overwrite"
     return "create"
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Seed synthetic Uber Audit Lance data and sync to S3.")
-    parser.add_argument("--rows", type=int, default=100_000, help="Number of records (default: 100000).")
+    parser = argparse.ArgumentParser(description="Seed synthetic Trace Lance data and sync to S3.")
+    parser.add_argument(
+        "--rows",
+        type=int,
+        default=DEFAULT_ROWS,
+        help=f"Number of records (default: {DEFAULT_ROWS}).",
+    )
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -756,6 +1317,18 @@ def main() -> None:
     )
     parser.add_argument("--table-name", type=str, default="uber_audit", help="Lance table name.")
     parser.add_argument("--seed", type=int, default=42, help="RNG seed for reproducibility.")
+    parser.add_argument(
+        "--embedding-mode",
+        choices=("openai", "random"),
+        default="openai",
+        help="Vector generation mode. openai is the eval/demo default; random is smoke/infra only.",
+    )
+    parser.add_argument(
+        "--embedding-model",
+        type=str,
+        default=DEFAULT_EMBEDDING_MODEL,
+        help=f"Embedding model for --embedding-mode openai (default: {DEFAULT_EMBEDDING_MODEL}). Must resolve to {VECTOR_DIM} dimensions.",
+    )
     parser.add_argument(
         "--bucket",
         type=str,
@@ -777,7 +1350,7 @@ def main() -> None:
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Overwrite existing table if it exists",
+        help="Overwrite the existing local table, source parquet, and manifest if they already exist.",
     )
     parser.add_argument(
         "--yes",
@@ -804,16 +1377,21 @@ def main() -> None:
     )
     args = parser.parse_args()
     validate_and_normalize_seed_args(args)
+    api_key = resolve_openai_api_key_or_exit(args.embedding_mode)
 
     args.output_dir = ensure_output_dir_ready(args.output_dir)
     preflight_local_disk_space(args.rows, VECTOR_DIM, args.output_dir)
-    warn_high_volume_rows_if_needed(args.rows, args.yes)
+    warn_high_volume_rows_if_needed(args.rows, args.yes, args.embedding_mode)
 
     staging_prefix: str | None = None
+    candidate_uri: str | None = None
+    live_uri: str | None = None
     if not args.skip_upload:
         base = args.s3_prefix
         run_id = _staging_run_id()
         staging_prefix = f"{base}/staging/{run_id}/"
+        candidate_uri = f"s3://{args.bucket}/{staging_prefix.rstrip('/')}/"
+        live_uri = f"s3://{args.bucket}/{base}/"
 
     write_mode = resolve_write_mode_or_exit(
         args.output_dir,
@@ -826,17 +1404,29 @@ def main() -> None:
         preflight_s3_bucket_writable(args.bucket, f"{base}/staging")
         clear_s3_prefix(args.bucket, staging_prefix)
 
-    print(f"Building {args.rows:,} rows...")
-    df = build_dataframe(args.rows, args.seed)
-
-    if write_mode == "overwrite":
-        print(
-            f"!!! OVERWRITING existing table: {args.table_name} !!!",
-            file=sys.stderr,
+    print(f"Building {args.rows:,} deterministic source records...")
+    try:
+        _df, source_path, manifest_path = build_seed_artifacts(
+            rows=args.rows,
+            output_dir=args.output_dir,
+            table_name=args.table_name,
+            seed=args.seed,
+            write_mode=write_mode,
+            embedding_mode=args.embedding_mode,
+            embedding_model=args.embedding_model,
+            api_key=api_key,
+            candidate_uri=candidate_uri,
+            live_uri=live_uri,
+            promote_to_live=args.promote_to_live,
         )
-    print(f"Writing Lance table {args.table_name!r} under {args.output_dir} and training IVF-PQ index...")
-    lance_dir = write_lance_table(df, args.output_dir, args.table_name, mode=write_mode)
+    except EmbeddingGenerationError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    lance_dir = args.output_dir / f"{args.table_name}.lance"
+    print(f"Source parquet: {source_path}")
     print(f"Local dataset: {lance_dir}")
+    print(f"Seed manifest: {manifest_path}")
 
     if not args.skip_upload:
         assert staging_prefix is not None
@@ -868,18 +1458,24 @@ def main() -> None:
             if lance_s3_uri is None:
                 cleanup_incomplete_staging(args.bucket, staging_prefix)
                 sys.exit(1)
-
-            candidate_uri = f"s3://{args.bucket}/{staging_prefix.rstrip('/')}/"
-            live_uri = f"s3://{args.bucket}/{base}/"
+            update_seed_manifest_publication_state(
+                manifest_path,
+                candidate_uri=candidate_uri,
+            )
 
             if args.promote_to_live:
                 enforce_promote_headless_allowance(args)
-                confirm_promote_to_live_if_needed(args.yes, live_uri)
+                confirm_promote_to_live_if_needed(args.yes, live_uri or "")
                 try:
                     promote_staging_to_live_prefix(args.bucket, staging_prefix, base)
                 except Exception as e:
                     print(f"Error: Promotion failed: {e}", file=sys.stderr)
                     sys.exit(1)
+                update_seed_manifest_publication_state(
+                    manifest_path,
+                    live_uri=live_uri,
+                    promote_to_live=True,
+                )
                 print(
                     f"Cleaning up staging prefix after successful promotion: "
                     f"{candidate_uri}",

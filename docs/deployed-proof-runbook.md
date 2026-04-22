@@ -1,8 +1,10 @@
 # Deployed proof path (operator runbook)
 
-Last updated: 2026-04-21
+Last updated: 2026-04-22
 
-This runbook covers **NEXT_STEPS step 1** only: prove the deployed Trace stack with direct `POST /search` and the MCP bridge tool `search_cold_archive`, and capture artifacts under `artifacts/validation-runs/`.
+This runbook covers the deployed-proof workflow: prove the deployed Trace stack
+with direct `POST /search` and the MCP bridge tool `search_cold_archive`, and
+capture artifacts under `artifacts/validation-runs/`.
 
 Full scope and deferred work are defined in [features/deployed-proof-path.md](features/deployed-proof-path.md).
 
@@ -81,7 +83,7 @@ Stable promoted examples (optional): `fixtures/deployed/examples/http_<case_id>.
 
 Cases live in `fixtures/deployed/golden_cases.json`. They are **proof-oriented** (non-empty results, optional post-hoc checks on returned rows), not retrieval-quality evaluation.
 
-**`require_filter_match` (step 1):** When true, the runner only checks that each result row's `city_code` and `doc_type` match **equality** conditions of the form `field = 'literal'` found in the case's `sql_filter` string (quoted literals, `''` escape supported). It does **not** re-validate the full `sql_filter` grammar ([`sql_filter` in API_CONTRACT.md](API_CONTRACT.md#sql_filter-grammar)); the Lambda still enforces that. The proof runner does **not** assert `IN (...)`, ranges, `OR` / `NOT`, or other shapes. Cases that rely on those operators should keep `require_filter_match` false and still prove the path by sending the filter and requiring non-empty results (see `filtered-doc-type-in` in the golden fixture).
+**`require_filter_match`:** When true, the runner only checks that each result row's `city_code` and `doc_type` match **equality** conditions of the form `field = 'literal'` found in the case's `sql_filter` string (quoted literals, `''` escape supported). It does **not** re-validate the full `sql_filter` grammar ([`sql_filter` in API_CONTRACT.md](API_CONTRACT.md#sql_filter-grammar)); the Lambda still enforces that. The proof runner does **not** assert `IN (...)`, ranges, `OR` / `NOT`, or other shapes. Cases that rely on those operators should keep `require_filter_match` false and still prove the path by sending the filter and requiring non-empty results (see `filtered-doc-type-in` in the golden fixture).
 
 ## Assumptions
 

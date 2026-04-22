@@ -1,6 +1,6 @@
 # Deployed Proof Path
 
-Last updated: 2026-04-21
+Last updated: 2026-04-22
 
 ## S3 layout (smoke vs eval)
 
@@ -11,7 +11,7 @@ For bucket **`trace-vault`**, keep roles separate:
 | **Random-vector smoke dataset** (old seed) | `s3://trace-vault/uber_audit.lance/` | **Smoke / infra only** — permissions, Lambda, MCP plumbing, rollback anchor. **Not** eval data; **not** semantic-eval truth. **Keep at this prefix**; **do not overwrite or delete** during migration. |
 | **Embedding-backed eval dataset** (new) | `s3://trace-vault/trace/eval/lance/` | **Eval / honest demos** — generate locally, upload here, **validate**, **then** repoint stack/Lambda. |
 
-Do **not** move **`uber_audit.lance/`** into **`trace/eval/lance/`** and treat it as eval data. Do **not** overwrite the smoke prefix in place to “upgrade” it—put the embedding-backed build under **`trace/eval/lance/`** instead. Do **not** mutate files in place under a fixed URI and expect immediate consistency—**prefer a new eval prefix and config repoint** (see [S3_MIGRATION.md](../S3_MIGRATION.md)); that avoids ambiguity and is safer for cache/cutover than replacing objects behind an unchanged URI. Step 1 proof cases validate the **deployed path**, not retrieval benchmark quality.
+Do **not** move **`uber_audit.lance/`** into **`trace/eval/lance/`** and treat it as eval data. Do **not** overwrite the smoke prefix in place to “upgrade” it—put the embedding-backed build under **`trace/eval/lance/`** instead. Do **not** mutate files in place under a fixed URI and expect immediate consistency—**prefer a new eval prefix and config repoint** (see [S3_MIGRATION.md](../S3_MIGRATION.md)); that avoids ambiguity and is safer for cache/cutover than replacing objects behind an unchanged URI. These proof cases validate the **deployed path**, not retrieval benchmark quality.
 
 **Cutover discipline:** repoint production Lambda / stack parameters to the eval URI **only after** the new prefix is validated. **Rollback** continues to use **`s3://trace-vault/uber_audit.lance/`** (smoke URI unchanged).
 
@@ -19,7 +19,7 @@ Do **not** move **`uber_audit.lance/`** into **`trace/eval/lance/`** and treat i
 
 Prove the Trace runtime path end to end against a real deployed stack and a real S3-backed Lance dataset.
 
-This feature operationalizes the top backlog item in [docs/NEXT_STEPS.md](../NEXT_STEPS.md):
+This feature operationalizes the deployed-proof milestone in [docs/NEXT_STEPS.md](../NEXT_STEPS.md):
 
 - deploy the current SAM stack against a real S3-backed Lance dataset
 - confirm `POST /search` returns real results in the deployed environment
@@ -76,7 +76,7 @@ These are the current seams this feature extends:
 
 ## Scope
 
-In scope for `NEXT_STEPS` step 1:
+In scope for the deployed-proof milestone:
 
 - operator-facing proof runner
 - deployed stack and search URL resolution
@@ -95,7 +95,7 @@ Out of scope:
 - retrieval-quality evaluation metrics beyond pass/fail proof checks
 - generalized ingestion or dataset-generation changes
 - broad benchmark automation
-- a full proof-runner testing framework beyond the minimal checks needed to complete step 1
+- a full proof-runner testing framework beyond the minimal checks needed to complete the deployed-proof milestone
 
 ## Data Model
 
@@ -131,7 +131,7 @@ Schema:
 }
 ```
 
-**`require_filter_match` is not grammar validation.** Step 1 uses it as a best-effort proof check: the runner extracts `city_code = '...'` and `doc_type = '...'` equality clauses (single-quoted literals) from `sql_filter` and asserts each returned row matches those literals. It does not prove that arbitrary `sql_filter` text was interpreted correctly overall. Operators must not treat a passing run as verification of the full filter language in [API_CONTRACT.md](../API_CONTRACT.md#sql_filter-grammar); that remains the search service's responsibility. Shapes such as `IN (...)`, inequalities, `OR`, `NOT`, and parentheses are outside the current proof assertions; golden cases that use them should set `require_filter_match` to false and rely on non-empty results (and manual spot checks) unless the filter string contains extractable `city_code` / `doc_type` equalities the runner can check.
+**`require_filter_match` is not grammar validation.** It is a best-effort proof check: the runner extracts `city_code = '...'` and `doc_type = '...'` equality clauses (single-quoted literals) from `sql_filter` and asserts each returned row matches those literals. It does not prove that arbitrary `sql_filter` text was interpreted correctly overall. Operators must not treat a passing run as verification of the full filter language in [API_CONTRACT.md](../API_CONTRACT.md#sql_filter-grammar); that remains the search service's responsibility. Shapes such as `IN (...)`, inequalities, `OR`, `NOT`, and parentheses are outside the current proof assertions; golden cases that use them should set `require_filter_match` to false and rely on non-empty results (and manual spot checks) unless the filter string contains extractable `city_code` / `doc_type` equalities the runner can check.
 
 ### Per-run manifest
 
@@ -243,9 +243,9 @@ Optimize for one embedding per case per run.
 
 The direct HTTP check and the MCP check should not both independently recompute embeddings when the purpose is contract verification. Cache the case vector during the run and reuse it where possible.
 
-## Step 1 Implementation Plan
+## Deployed Proof Implementation Plan
 
-This section is intentionally trimmed to match only `NEXT_STEPS` step 1.
+This section is intentionally trimmed to match only the deployed-proof milestone.
 
 ### 1. Finish deployment-context resolution
 
@@ -306,24 +306,34 @@ Done when:
 
 Done when:
 
-- backlog step 1 is satisfied with recorded evidence, not just local scaffolding
+- the deployed-proof milestone is satisfied with recorded evidence, not just local scaffolding
 
 ## Deferred Work By Backlog Step
 
 The remaining implementation work belongs to later backlog steps, not this feature milestone.
 
-### Move to `NEXT_STEPS` step 2: Align the ingestion and retrieval story
+### Move to `NEXT_STEPS` step 1: Align the ingestion and retrieval story
 
-- any change to `scripts/seed.py` that adds real embedding-backed ingestion
-- any dataset manifest describing embedding model and generation parameters
-- any work that makes demo datasets semantically honest and reproducible
-- any refactor that separates dataset generation from embedding generation
+- any follow-up that keeps the seed pipeline honest and auditable, including embedding-backed provenance details
+- any work that further separates or refines dataset generation versus embedding generation in the seed pipeline
+- any work that is primarily about keeping smoke-mode and eval-mode claims clean
 
 Reason:
 
 - those changes are about data realism and ingestion architecture, not deployed proof of the current runtime path
 
-### Move to `NEXT_STEPS` step 3: Prove retrieval relevance, not just infrastructure health
+### Move to `NEXT_STEPS` step 2: Populate and validate the eval dataset path
+
+- generate the embedding-backed dataset locally and validate it before upload
+- upload that dataset to `s3://trace-vault/trace/eval/lance/`
+- repoint SAM / Lambda to the eval prefix only after the new dataset is validated
+- record the active embedding model, vector dimension, and dataset URI so deployment verification is auditable
+
+Reason:
+
+- deployed proof should consume a validated eval dataset path; building and promoting that dataset is a separate prerequisite
+
+### Move to `NEXT_STEPS` step 4: Prove retrieval relevance, not just infrastructure health
 
 - labeled relevance judgments beyond simple proof fixtures
 - expected-rank assertions intended to prove semantic quality
@@ -334,7 +344,7 @@ Reason:
 
 - this is retrieval evaluation work, not deployment verification
 
-### Move to `NEXT_STEPS` step 4: Add deployment and operations documentation
+### Move to `NEXT_STEPS` step 5: Add deployment and operations documentation
 
 - broad environment setup checklists
 - rollback procedures
@@ -343,9 +353,20 @@ Reason:
 
 Reason:
 
-- only the minimum run instructions belong in step 1; the fuller operator handbook is a later documentation milestone
+- only the minimum run instructions belong in the deployed-proof milestone; the fuller operator handbook is a later documentation milestone
 
-### Move to `NEXT_STEPS` step 5: Add benchmark evidence
+### Move to `NEXT_STEPS` step 6: Harden deployed proof automation
+
+- expanded unit and integration coverage for the proof runner
+- CI-safe dry-run or mock-mode verification
+- lightweight replay or reduced smoke-check paths
+- decisions about which proof automation belongs in CI versus manual release checks
+
+Reason:
+
+- hardening and automation are follow-up work after the initial deployed-proof milestone is in place
+
+### Move to `NEXT_STEPS` step 7: Add benchmark evidence
 
 - cold-start and warm-path timing suites
 - memory and cost measurement automation
@@ -355,19 +376,19 @@ Reason:
 
 - benchmark evidence is explicitly a later milestone and should not expand the deployed proof feature
 
-### Move to `NEXT_STEPS` step 6: Build a stronger demo and judging surface
+### Move to `NEXT_STEPS` step 8: Build a stronger demo and judging surface
 
 - a polished user-facing walkthrough
-- curated “semantic beats keyword” showcase cases
+- curated "semantic beats keyword" showcase cases
 - explanatory demo packaging intended for judges or external viewers
 
 Reason:
 
-- step 1 only needs a small set of proof cases and saved fixtures, not a polished demo surface
+- this milestone only needs a small set of proof cases and saved fixtures, not a polished demo surface
 
 ## Testing Strategy
 
-Keep this intentionally light for step 1.
+Keep this intentionally light for the deployed-proof milestone.
 
 Critical unit tests:
 

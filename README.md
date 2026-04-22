@@ -22,7 +22,13 @@ The current implementation supports Lance-backed nearest-neighbor search, constr
 
 ### 1. Seed a local dataset
 
-`scripts/seed.py` currently generates synthetic records with random vectors. It is useful for local smoke checks and infrastructure validation, not for semantic-retrieval evaluation.
+`scripts/seed.py` now generates a deterministic synthetic source corpus, writes
+`<output_dir>/<table>.source.parquet` and
+`<output_dir>/<table>.seed-manifest.json`, and supports two explicit vector
+modes:
+
+- `openai` (default): real embeddings for eval/demo datasets
+- `random`: deterministic smoke/infra vectors only
 
 Install Python dependencies:
 
@@ -30,19 +36,25 @@ Install Python dependencies:
 pip install -r scripts/requirements.txt -c scripts/constraints.txt
 ```
 
-Generate a small local dataset:
+Generate a small random-vector smoke dataset:
 
 ```bash
-python scripts/seed.py --rows 2000 --output-dir _smoke_lance_seed --force
+python scripts/seed.py --embedding-mode random --rows 2000 --output-dir _smoke_lance_seed --force
 ```
 
-Generate the default full local dataset:
+Generate the default embedding-backed local dataset:
 
 ```bash
+set OPENAI_API_KEY=...
 python scripts/seed.py --force
 ```
 
-Both `lance_seed/` and `_smoke_lance_seed/` are generated outputs and should remain untracked.
+The default run uses `text-embedding-3-small` and keeps the dataset at 1536
+dimensions to match the current Lambda and MCP bridge expectations.
+
+Generated outputs under the selected `output_dir` such as `lance_seed/`,
+`_smoke_lance_seed/`, `<table>.source.parquet`, and
+`<table>.seed-manifest.json` should remain untracked.
 
 ### 2. Validate the Rust Lambda
 
@@ -90,7 +102,7 @@ Important MCP bridge environment variables:
 
 ## Proof tooling
 
-The repo now includes step-1 deployment proof tooling:
+The repo now includes deployed-proof tooling for the later end-to-end validation milestone:
 
 - `scripts/prove_deployed_path.py`: validates deployed `POST /search` and MCP traversal, writes per-run artifacts, and can promote scrubbed stable fixtures
 - `scripts/proof_mcp_stdio.py`: stdio JSON-RPC helper for exercising `mcp-bridge` as a subprocess from the proof runner
