@@ -1,0 +1,57 @@
+[
+  {
+    "id": "insurance-lapse-semantic",
+    "query": "Which fleet vehicles had commercial auto coverage lapse and were suspended until a new insurance certificate was uploaded?",
+    "expected_doc_types": ["Insurance_Lapse_Report"],
+    "limit": 5,
+    "min_expected_matches": 3
+  },
+  {
+    "id": "inspection-overdue-semantic",
+    "query": "Find overdue vehicle inspection audit cases that still need mechanic sign-off paperwork.",
+    "expected_doc_types": ["Vehicle_Inspection_Audit"],
+    "limit": 5,
+    "min_expected_matches": 3
+  },
+  {
+    "id": "privacy-request-semantic",
+    "query": "Show privacy deletion or erasure requests tied to retained trip and telematics records.",
+    "expected_doc_types": ["Data_Privacy_Request"],
+    "limit": 5,
+    "min_expected_matches": 3
+  },
+  {
+    "id": "background-flag-semantic",
+    "query": "Find drivers with background screening flags that require manual adjudication before access can be restored.",
+    "expected_doc_types": ["Driver_Background_Flag"],
+    "limit": 5,
+    "min_expected_matches": 3
+  },
+  {
+    "id": "permit-renewal-semantic",
+    "query": "Which drivers still have incomplete city permit renewals and need fee confirmation or registration details uploaded?",
+    "expected_doc_types": ["City_Permit_Renewal"],
+    "limit": 5,
+    "min_expected_matches": 3
+  },
+  {
+    "id": "sf-safety-filtered",
+    "query": "Find rider safety incident reports involving route deviation and in-app safety tools.",
+    "sql_filter": "city_code = 'SF-CPUC' AND doc_type = 'Safety_Incident_Log'",
+    "expected_doc_types": ["Safety_Incident_Log"],
+    "expected_city_codes": ["SF-CPUC"],
+    "limit": 5,
+    "min_expected_matches": 3,
+    "require_all_results_match": true
+  },
+  {
+    "id": "recent-mex-permit-filtered",
+    "query": "Find recent Mexico City permit renewal backlog cases that still need renewal paperwork completed.",
+    "sql_filter": "city_code = 'MEX-SEMOVI' AND doc_type = 'City_Permit_Renewal' AND timestamp >= '2025-01-01T00:00:00Z'",
+    "expected_doc_types": ["City_Permit_Renewal"],
+    "expected_city_codes": ["MEX-SEMOVI"],
+    "limit": 5,
+    "min_expected_matches": 2,
+    "require_all_results_match": true
+  }
+]

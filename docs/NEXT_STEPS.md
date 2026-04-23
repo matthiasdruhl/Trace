@@ -22,7 +22,7 @@ claims clean.
 Remaining follow-up for this milestone:
 
 - keep random vectors only as an explicit structural/local smoke-test mode in docs and operator practice
-- validate a few local semantic queries against the new embedding-backed path before treating it as ready for S3 promotion
+- validate a few curated local queries against the new embedding-backed path before treating it as ready for S3 promotion
 - keep documenting the active embedding model and the 1536-dimension assumption anywhere operators will need to audit it
 - preserve the source parquet plus manifest workflow as the canonical provenance trail for regenerated datasets
 
@@ -54,7 +54,13 @@ Required follow-up:
 - repoint SAM / Lambda to the eval prefix only after the new dataset is validated
 - record the active embedding model, vector dimension, and dataset URI in docs or manifests so deployment verification is auditable
 
-This is the point after which deployed-path verification becomes meaningful for semantic behavior, because the stack can finally point at a real embedding-backed corpus.
+Implemented in code:
+
+- `scripts/validate_eval_dataset.py` runs a small curated local query and filtered-query sanity gate against the embedding-backed Lance dataset before upload
+- `fixtures/eval/local_validation_cases.json` provides the default small curated sanity-case corpus
+- the validation runner writes `<table>.eval-validation.json` and records the latest validation summary in the seed manifest for auditability
+
+This is the point after which deployed-path verification becomes worth doing, because the stack can finally point at a real embedding-backed corpus. The local validator still does not replace a separate deployed proof pass or a labeled relevance harness.
 
 ## 3. Prove the deployed path end to end
 

@@ -93,7 +93,7 @@ Do not use the current dataset as the primary basis for:
 - benchmark tables about relevance
 - judge-facing demos that depend on "meaningful nearest neighbors"
 - comparisons against keyword search or naive RAG
-- examples intended to prove that embeddings are working well
+- examples intended to prove full retrieval quality or production-parity behavior
 
 If the underlying vectors are random, then semantic-quality claims will be weak even if the rest of the architecture is strong.
 
@@ -174,20 +174,28 @@ Before uploading anything new:
 - decide which embedding model will be used
 - generate a new local Lance dataset with real text-derived vectors
 - confirm the local dataset can be opened and searched
-- run a few sanity checks with known semantically related queries
+- run a few small curated local sanity cases with known semantically related queries
 
 What to verify locally before upload:
 
 - the vector dimension matches `TRACE_QUERY_VECTOR_DIM`
 - the dataset schema still matches the Lambda expectations
 - the index build succeeds
-- filtered and unfiltered searches behave plausibly
+- filtered and unfiltered searches satisfy a few small curated local expectations
 - the dataset is small enough to upload and test cheaply if this is the first semantic-eval pass
+
+Recommended local validation command:
+
+```bash
+set OPENAI_API_KEY=...
+python scripts/validate_eval_dataset.py --output-dir lance_seed --table-name uber_audit
+```
 
 Current status:
 
 - this phase is still pending
-- `scripts/seed.py` still generates random vectors, so it should not yet be used to populate the eval prefix if the goal is semantic-quality validation
+- `scripts/seed.py` now supports real OpenAI-backed embeddings for the local eval build
+- `scripts/validate_eval_dataset.py` now provides a repeatable local pre-upload sanity-check step for dataset shape, embedding-model consistency, restricted filter syntax, and a few small curated retrieval expectations
 
 ### Phase 3: Upload to a new S3 prefix
 
@@ -331,8 +339,8 @@ If you only have one deployed stack, keep it on the smoke dataset until the new 
 - generate the embedding-backed dataset locally
 - build the Lance index
 - run local search checks
-- verify a few hand-selected semantic queries
-- verify a few filtered queries
+- verify a few hand-selected local sanity-check queries
+- verify a few filtered-query sanity cases
 
 ### D. Upload safely
 
@@ -344,7 +352,7 @@ If you only have one deployed stack, keep it on the smoke dataset until the new 
 
 - point a temporary or eval deployment at the new prefix
 - run API and MCP smoke checks
-- run semantic-quality sanity checks
+- run small sanity checks on retrieval behavior
 - save representative request and response examples
 
 ### F. Cut over the right environment
@@ -409,7 +417,7 @@ Use this **seven-step** sequence for the **current** bucket and prefixes:
 
 1. **Preserve the old dataset** — do nothing that deletes or rewrites **`s3://trace-vault/uber_audit.lance/`**; do not move it into `trace/eval/lance/`.
 2. **Label it as smoke** — in runbooks and team notes, call it the **random-vector smoke dataset** / **smoke / infra** data; **not** eval and **not** semantic-retrieval proof.
-3. **Generate the embedding-backed eval dataset locally** — real vectors from text; dimension aligned with `TRACE_QUERY_VECTOR_DIM`; verify search locally before upload.
+3. **Generate the embedding-backed eval dataset locally** — real vectors from text; dimension aligned with `TRACE_QUERY_VECTOR_DIM`; run the local sanity gate before upload.
 4. **Upload to the new eval prefix** — **`s3://trace-vault/trace/eval/lance/`** only; never upload the eval build into **`uber_audit.lance/`** or “promote” random-vector trees into `trace/eval/lance/`.
 5. **Validate there** — point a local stack, temporary env, or isolated config at the eval URI; run `POST /search`, MCP, and (when applicable) `prove_deployed_path.py` **before** any production cutover.
 6. **Repoint stack / Lambda only after validation** — set `TRACE_LANCE_S3_URI` or `TraceDataBucketName` + `TraceLancePrefix` to the eval URI **only after** step 5 passes.
@@ -453,7 +461,7 @@ Use simple labels in notes, env files, or deployment docs:
 
 - `smoke`: structurally valid random-vector dataset for infra checks
 - `eval`: embedding-backed dataset for retrieval metrics
-- `demo`: embedding-backed dataset curated for presentation quality
+- `demo`: embedding-backed dataset selected for presentation quality
 
 ## Final recommendation
 

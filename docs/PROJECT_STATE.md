@@ -51,6 +51,14 @@ Implemented in `scripts/seed.py`:
 - optional S3 staging upload and promotion flow
 - CLI validation and local disk-space preflight checks
 
+Implemented in `scripts/validate_eval_dataset.py`:
+
+- small curated local query validation against embedding-backed Lance datasets before upload
+- filtered-query validation cases for metadata-constrained retrieval sanity checks under the repo's restricted filter grammar
+- manifest checks for `openai` embedding mode, expected vector dimension, and query/dataset embedding-model consistency
+- case evaluation based on top-result metadata alignment plus minimum top-k matching counts, with optional all-results metadata checks for filtered cases
+- JSON validation report output plus seed-manifest stamping of the latest local validation summary
+
 Important current behavior:
 
 - `openai` mode is now the default path for local eval/demo dataset generation and uses `text-embedding-3-small` at `1536` dimensions
