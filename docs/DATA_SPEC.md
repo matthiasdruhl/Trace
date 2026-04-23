@@ -22,6 +22,7 @@ It is synthetic compliance-style data, not production customer data.
 - default embedding model: `text-embedding-3-small`
 - source artifact: `<output_dir>/<table_name>.source.parquet`
 - manifest artifact: `<output_dir>/<table_name>.seed-manifest.json`
+- eval validation report artifact: `<output_dir>/<table_name>.eval-validation.json`
 - index type: IVF-PQ on the `vector` column when the dataset is large enough to train it
 
 ## Table schema
@@ -109,6 +110,31 @@ When upload mode is enabled, the script:
 3. uploads to a unique staging prefix
 4. orders uploads so manifests and transaction objects are written last
 5. optionally promotes the staged dataset to the live prefix
+
+## Local eval validation
+
+Before uploading an embedding-backed eval dataset, run:
+
+```bash
+set OPENAI_API_KEY=...
+python scripts/validate_eval_dataset.py --output-dir lance_seed --table-name uber_audit
+```
+
+The validator:
+
+- loads curated cases from `fixtures/eval/local_validation_cases.json`
+- requires an `openai`-mode dataset manifest and the expected `1536` vector dimension
+- embeds the validation queries with the manifest embedding model, or rejects an override that does not match it
+- validates only the repo's restricted `sql_filter` grammar for allowed fields before running filtered cases
+- checks that the top result and minimum top-k match counts satisfy each case's expected `doc_type` and `city_code` metadata constraints
+- requires all returned rows to satisfy those metadata constraints for cases that opt into `require_all_results_match`
+- writes `<output_dir>/<table_name>.eval-validation.json`
+- updates `<output_dir>/<table_name>.seed-manifest.json` with a `latest_local_validation` summary
+
+This is a lightweight local sanity check before upload. It does not establish
+full retrieval relevance, exhaustive filtered-query coverage, or deployed-path
+equivalence. The local corpus is intentionally a small curated sanity set, not
+a benchmark or labeled relevance harness.
 
 ## Operational note
 

@@ -52,6 +52,22 @@ python scripts/seed.py --force
 The default run uses `text-embedding-3-small` and keeps the dataset at 1536
 dimensions to match the current Lambda and MCP bridge expectations.
 
+Validate the embedding-backed local eval dataset before upload:
+
+```bash
+set OPENAI_API_KEY=...
+python scripts/validate_eval_dataset.py --output-dir lance_seed --table-name uber_audit
+```
+
+That command runs a small curated set of local query and filtered-query sanity
+cases from `fixtures/eval/local_validation_cases.json`, writes
+`<output_dir>/<table>.eval-validation.json`, and records the latest validation
+summary back into the seed manifest for auditability before S3 promotion. The
+current validator is a local gate for an `openai` manifest, manifest/query
+model alignment, `1536`-dimension consistency, the repo's restricted
+`sql_filter` syntax, and a few expected retrieval patterns; it is not a full
+relevance harness, benchmark corpus, or proof of deployed-path equivalence.
+
 Generated outputs under the selected `output_dir` such as `lance_seed/`,
 `_smoke_lance_seed/`, `<table>.source.parquet`, and
 `<table>.seed-manifest.json` should remain untracked.
