@@ -1,6 +1,6 @@
 # Trace Deployment Runbook
 
-Last updated: 2026-04-23
+Last updated: 2026-04-24
 
 This runbook is the end-to-end operator guide for deploying Trace from this
 repository. It covers:
@@ -270,10 +270,18 @@ python scripts\prove_deployed_path.py --repo-root .
 
 Acceptance criteria:
 
+- use a full proof run, not `--dry-run`, `--skip-mcp`, `--allow-missing-vectors`, or `--mock-embeddings`
 - HTTP proof passes
 - MCP proof passes
 - filtered and unfiltered proof cases pass
+- successful HTTP and MCP responses report `query_dim` matching the deployed runtime expectation
 - artifacts are written under `artifacts/validation-runs/<run_id>/`
+
+Only that full run counts for Step 3 completion wording. Dry-run, skip-MCP,
+missing-vector, and mock-embedding modes are still useful for scaffolding or
+smoke debugging, but they are not Step 3 acceptance evidence. The runner may
+still write partial artifacts in those modes, then exits non-zero because the
+proof is incomplete.
 
 Optional stable fixtures:
 
@@ -286,7 +294,19 @@ python scripts\prove_deployed_path.py `
 ```
 
 Only promote stable fixtures if the responses are representative and clean
-enough to keep in the repository.
+enough to keep in the repository. Use `docs/deployed-proof-runbook.md` for the
+full Step 3 acceptance sequence, artifact review expectations, and fixture
+promotion guidance.
+
+Important guardrail: the runner enforces that stable-fixture writing comes from
+a full run with explicit `--stable-fixture-cases`, full HTTP and MCP
+request/response artifacts for every selected case, and it blocks promotion
+outside the trusted eval context unless you pass
+`--allow-non-eval-stable-fixtures`.
+Before committing fixtures, still confirm the manifest `dataset_uri` is
+`s3://trace-vault/trace/eval/lance/`, confirm any provided `--stack-name` was
+`trace-eval`, and do not promote smoke dataset examples or rely on any default
+representative-fixture policy for normal Step 3 evidence.
 
 ## 8. Step 2 completion status
 
@@ -298,6 +318,7 @@ Step 2 is now complete in this workspace. The following have already happened:
 - `trace-smoke` was deployed against `uber_audit.lance`
 - `trace-eval` was deployed against `trace/eval/lance`
 - deployed proof passed on `trace-eval`
+- that Step 3 proof is only considered complete when the accepted run includes both HTTP and MCP validation against `trace-eval`
 - the smoke dataset remained available as rollback-only infra data
 
 ## 9. Rollback

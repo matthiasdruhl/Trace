@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import io
 import json
 import shutil
 import sys
@@ -141,6 +142,7 @@ class TestValidateRunFlags(unittest.TestCase):
             write_stable_fixtures=True,
             skip_mcp=True,
             dry_run=False,
+            stable_fixture_cases="case-a",
         )
         with self.assertRaises(prove.ProofPathError) as ctx:
             prove.validate_run_flags(args)
@@ -151,17 +153,30 @@ class TestValidateRunFlags(unittest.TestCase):
             write_stable_fixtures=True,
             skip_mcp=False,
             dry_run=True,
+            stable_fixture_cases="case-a",
         )
         with self.assertRaises(prove.ProofPathError) as ctx:
             prove.validate_run_flags(args)
         self.assertIn("--dry-run", str(ctx.exception))
 
-    def test_write_stable_alone_ok(self) -> None:
+    def test_write_stable_requires_explicit_case_ids(self) -> None:
+        args = argparse.Namespace(
+            write_stable_fixtures=True,
+            skip_mcp=False,
+            dry_run=False,
+            stable_fixture_cases="",
+        )
+        with self.assertRaises(prove.ProofPathError) as ctx:
+            prove.validate_run_flags(args)
+        self.assertIn("--stable-fixture-cases", str(ctx.exception))
+
+    def test_write_stable_with_explicit_case_ids_ok(self) -> None:
         prove.validate_run_flags(
             argparse.Namespace(
                 write_stable_fixtures=True,
                 skip_mcp=False,
                 dry_run=False,
+                stable_fixture_cases="unfiltered-demo,filtered-nyc-safety",
             )
         )
 
@@ -171,6 +186,7 @@ class TestValidateRunFlags(unittest.TestCase):
                 write_stable_fixtures=False,
                 skip_mcp=True,
                 dry_run=True,
+                stable_fixture_cases="",
             )
         )
 
@@ -258,6 +274,54 @@ class TestResolveRuntimeContext(unittest.TestCase):
                     )
                 )
         self.assertIn("simulated stack API failure", str(ctx.exception))
+
+
+class TestStableFixturePromotionContext(unittest.TestCase):
+    def _ctx(self, *, stack_name: str | None, dataset_uri: str | None) -> prove.RuntimeContext:
+        return prove.RuntimeContext(
+            stack_name=stack_name,
+            region="us-east-1",
+            search_url="https://example.invalid/search",
+            dataset_uri=dataset_uri,
+            api_key=None,
+            embedding_model="text-embedding-3-small",
+            query_dim=1536,
+            api_auth_mode="iam_only_or_public",
+            local_api_key_supplied=False,
+        )
+
+    def test_rejects_eval_stack_with_non_eval_dataset_uri(self) -> None:
+        with self.assertRaises(prove.ProofPathError) as ctx:
+            prove.assert_stable_fixture_promotion_context(
+                self._ctx(
+                    stack_name="trace-eval",
+                    dataset_uri="s3://trace-vault/trace/smoke/lance",
+                ),
+                allow_non_eval_stable_fixtures=False,
+            )
+        self.assertIn("dataset_uri must be", str(ctx.exception))
+        self.assertIn("trace/smoke/lance", str(ctx.exception))
+
+    def test_rejects_non_eval_stack_with_eval_dataset_uri(self) -> None:
+        with self.assertRaises(prove.ProofPathError) as ctx:
+            prove.assert_stable_fixture_promotion_context(
+                self._ctx(
+                    stack_name="trace-smoke",
+                    dataset_uri="s3://trace-vault/trace/eval/lance",
+                ),
+                allow_non_eval_stable_fixtures=False,
+            )
+        self.assertIn("stack_name must be", str(ctx.exception))
+        self.assertIn("trace-smoke", str(ctx.exception))
+
+    def test_accepts_eval_dataset_without_stack_name(self) -> None:
+        prove.assert_stable_fixture_promotion_context(
+            self._ctx(
+                stack_name=None,
+                dataset_uri="s3://trace-vault/trace/eval/lance",
+            ),
+            allow_non_eval_stable_fixtures=False,
+        )
 
 
 class TestFilterAssertions(unittest.TestCase):
@@ -421,6 +485,239 @@ class TestPromoteStable(unittest.TestCase):
                 bundle["request"]["query_vector"],
                 {"_redacted": True, "dim": 1},
             )
+
+    def test_missing_http_request_artifact_fails(self) -> None:
+        mod = prove
+        with repo_temp_dir() as td:
+            run_dir = td / "run"
+            run_dir.mkdir()
+            (run_dir / "http").mkdir()
+            (run_dir / "mcp").mkdir()
+            cid = "case-a"
+            (run_dir / "http" / f"{cid}.response.json").write_text(
+                json.dumps({"ok": True, "results": [], "query_dim": 1536}),
+                encoding="utf-8",
+            )
+            (run_dir / "mcp" / f"{cid}.request.json").write_text(
+                json.dumps({"query_text": "x"}),
+                encoding="utf-8",
+            )
+            (run_dir / "mcp" / f"{cid}.response.json").write_text(
+                json.dumps({"ok": True, "results": [], "query_dim": 1536}),
+                encoding="utf-8",
+            )
+            cases = [mod.GoldenCase(case_id=cid, query_text="x")]
+            with self.assertRaises(mod.ProofPathError) as ctx:
+                mod.promote_stable_fixtures(run_dir, cases, [cid], td / "out")
+            self.assertIn("Missing HTTP request artifact", str(ctx.exception))
+
+    def test_missing_mcp_request_artifact_fails(self) -> None:
+        mod = prove
+        with repo_temp_dir() as td:
+            run_dir = td / "run"
+            run_dir.mkdir()
+            (run_dir / "http").mkdir()
+            (run_dir / "mcp").mkdir()
+            cid = "case-a"
+            (run_dir / "http" / f"{cid}.request.json").write_text(
+                json.dumps({"query_vector": [0.1], "limit": 3}),
+                encoding="utf-8",
+            )
+            (run_dir / "http" / f"{cid}.response.json").write_text(
+                json.dumps({"ok": True, "results": [], "query_dim": 1536}),
+                encoding="utf-8",
+            )
+            (run_dir / "mcp" / f"{cid}.response.json").write_text(
+                json.dumps({"ok": True, "results": [], "query_dim": 1536}),
+                encoding="utf-8",
+            )
+            cases = [mod.GoldenCase(case_id=cid, query_text="x")]
+            with self.assertRaises(mod.ProofPathError) as ctx:
+                mod.promote_stable_fixtures(run_dir, cases, [cid], td / "out")
+            self.assertIn("Missing MCP request artifact", str(ctx.exception))
+
+    def test_unknown_case_id_fails(self) -> None:
+        mod = prove
+        with repo_temp_dir() as td:
+            run_dir = td / "run"
+            run_dir.mkdir()
+            (run_dir / "http").mkdir()
+            (run_dir / "mcp").mkdir()
+            cases = [mod.GoldenCase(case_id="case-a", query_text="x")]
+            with self.assertRaises(mod.ProofPathError) as ctx:
+                mod.promote_stable_fixtures(run_dir, cases, ["case-b"], td / "out")
+            self.assertIn("Unknown stable fixture case_id", str(ctx.exception))
+
+
+class TestRunCase(unittest.TestCase):
+    def _ctx(self) -> prove.RuntimeContext:
+        return prove.RuntimeContext(
+            stack_name="trace-eval",
+            region="us-east-1",
+            search_url="https://example.invalid/search",
+            dataset_uri="s3://trace-vault/trace/eval/lance",
+            api_key=None,
+            embedding_model="text-embedding-3-small",
+            query_dim=1536,
+            api_auth_mode="iam_only_or_public",
+            local_api_key_supplied=False,
+        )
+
+    def test_dry_run_writes_mcp_request_scaffold_and_note(self) -> None:
+        case = prove.GoldenCase(case_id="case-a", query_text="audit logs", sql_filter="")
+        with repo_temp_dir() as td:
+            result = prove.run_case(
+                case,
+                self._ctx(),
+                ROOT,
+                td,
+                timeout_seconds=1,
+                mcp_timeout_seconds=1,
+                mock_embeddings=False,
+                allow_missing_vectors=False,
+                skip_mcp=False,
+                dry_run=True,
+            )
+            self.assertEqual(
+                result.notes,
+                ["Dry run: skipped HTTP, MCP, and embedding calls."],
+            )
+            self.assertFalse(result.http_ok)
+            self.assertFalse(result.mcp_ok)
+            self.assertFalse((td / "http" / "case-a.request.json").exists())
+            mcp_request = json.loads(
+                (td / "mcp" / "case-a.request.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(mcp_request["query_text"], "audit logs")
+            self.assertEqual(mcp_request["sql_filter"], "")
+
+    def test_skip_mcp_still_validates_http_and_records_note(self) -> None:
+        case = prove.GoldenCase(case_id="case-a", query_text="audit logs", sql_filter="")
+        http_response = {"ok": True, "results": [{"incident_id": "inc-1"}], "query_dim": 1536}
+        with repo_temp_dir() as td, patch.object(
+            prove,
+            "resolve_case_vector",
+            return_value=[0.0] * 1536,
+        ), patch.object(
+            prove,
+            "call_search_http",
+            return_value=http_response,
+        ), patch.object(prove, "call_search_mcp_bridge") as mock_mcp:
+            result = prove.run_case(
+                case,
+                self._ctx(),
+                ROOT,
+                td,
+                timeout_seconds=1,
+                mcp_timeout_seconds=1,
+                mock_embeddings=False,
+                allow_missing_vectors=False,
+                skip_mcp=True,
+                dry_run=False,
+            )
+
+            self.assertTrue(result.http_ok)
+            self.assertFalse(result.mcp_ok)
+            self.assertIn(
+                "Skipped MCP validation because --skip-mcp was set.",
+                result.notes,
+            )
+            mock_mcp.assert_not_called()
+            http_request = json.loads(
+                (td / "http" / "case-a.request.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(http_request["limit"], 5)
+            self.assertEqual(http_request["include_text"], True)
+
+
+class TestMainSuccessCriteria(unittest.TestCase):
+    def _args(self, artifacts_root: Path, *, skip_mcp: bool, allow_missing_vectors: bool):
+        return argparse.Namespace(
+            cases=ROOT / "fixtures" / "deployed" / "golden_cases.json",
+            artifacts_root=artifacts_root,
+            repo_root=ROOT,
+            stack_name=None,
+            region=None,
+            search_url="https://example.invalid/search",
+            dataset_uri="s3://trace-vault/trace/eval/lance",
+            api_key=None,
+            embedding_model="text-embedding-3-small",
+            query_dim=1536,
+            timeout_seconds=1,
+            mcp_timeout_seconds=1,
+            mock_embeddings=False,
+            allow_missing_vectors=allow_missing_vectors,
+            skip_mcp=skip_mcp,
+            write_stable_fixtures=False,
+            stable_fixture_cases="",
+            dry_run=False,
+        )
+
+    def test_main_fails_when_case_skips_mcp_validation(self) -> None:
+        case = prove.GoldenCase(case_id="case-a", query_text="audit logs")
+        case_result = prove.CaseResult(
+            case_id="case-a",
+            http_ok=True,
+            mcp_ok=False,
+            notes=["Skipped MCP validation because --skip-mcp was set."],
+        )
+        with repo_temp_dir() as td, patch.object(
+            prove,
+            "parse_args",
+            return_value=self._args(td, skip_mcp=True, allow_missing_vectors=False),
+        ), patch.object(
+            prove,
+            "load_cases",
+            return_value=[case],
+        ), patch.object(
+            prove,
+            "resolve_runtime_context",
+            return_value=TestRunCase()._ctx(),
+        ), patch.object(
+            prove,
+            "run_case",
+            return_value=case_result,
+        ):
+            stderr = io.StringIO()
+            with patch("sys.stderr", stderr):
+                exit_code = prove.main()
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("Step 3 requires both HTTP and MCP validation", stderr.getvalue())
+        self.assertIn("case-a (MCP missing)", stderr.getvalue())
+
+    def test_main_fails_when_case_skips_http_validation(self) -> None:
+        case = prove.GoldenCase(case_id="case-a", query_text="audit logs")
+        case_result = prove.CaseResult(
+            case_id="case-a",
+            http_ok=False,
+            mcp_ok=True,
+            notes=["Skipped HTTP search (no query vector)."],
+        )
+        with repo_temp_dir() as td, patch.object(
+            prove,
+            "parse_args",
+            return_value=self._args(td, skip_mcp=False, allow_missing_vectors=True),
+        ), patch.object(
+            prove,
+            "load_cases",
+            return_value=[case],
+        ), patch.object(
+            prove,
+            "resolve_runtime_context",
+            return_value=TestRunCase()._ctx(),
+        ), patch.object(
+            prove,
+            "run_case",
+            return_value=case_result,
+        ):
+            stderr = io.StringIO()
+            with patch("sys.stderr", stderr):
+                exit_code = prove.main()
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("Step 3 requires both HTTP and MCP validation", stderr.getvalue())
+        self.assertIn("case-a (HTTP missing)", stderr.getvalue())
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # Trace project state
 
-Last updated: 2026-04-23
+Last updated: 2026-04-24
 
 ## Summary
 
@@ -17,7 +17,7 @@ Against the active backlog in `docs/NEXT_STEPS.md`, the current status is:
 
 - Step 1 (ingestion/retrieval story): implemented in code
 - Step 2 (eval dataset path): complete
-- Step 3 (deployed proof path): partially complete
+- Step 3 (deployed proof path): complete
 - Steps 4, 7, 8, and 9: not implemented yet
 - Steps 5 and 6: partially complete through early docs/tooling, but not finished as operator-ready systems
 
@@ -92,6 +92,16 @@ Current deployed proof status:
 - the first successful eval-stack proof run completed at `artifacts/validation-runs/20260423T233528Z`
 - that run used stack `trace-eval`, dataset `s3://trace-vault/trace/eval/lance`, region `us-east-1`, and model `text-embedding-3-small`
 - all proof cases in that run passed for both direct HTTP and MCP traversal
+- representative scrubbed stable fixtures are now committed under `fixtures/deployed/examples/` for `unfiltered-demo` and `filtered-nyc-safety`
+- `docs/deployed-proof-runbook.md` now defines the repeatable acceptance sequence for reruns and fixture promotion
+
+Important boundary on those claims:
+
+- Step 3 completion refers to a full deployed proof run with both HTTP and MCP validation against the eval dataset
+- the proof runner also supports `--dry-run`, `--skip-mcp`, `--allow-missing-vectors`, and `--mock-embeddings`, but those modes are scaffolding or smoke aids rather than completion evidence
+- stable-fixture writing is guarded against `--dry-run` and `--skip-mcp`, requires explicit `--stable-fixture-cases`, and requires all four artifacts for each selected case: HTTP request, HTTP response, MCP request, and MCP response
+- the runner also blocks stable-fixture promotion outside the trusted eval context by default: manifest `dataset_uri` must equal `s3://trace-vault/trace/eval/lance/`, and if `stack_name` is provided it must equal `trace-eval`
+- `--allow-non-eval-stable-fixtures` can still override that guard, so operators still need to confirm committed proof fixtures came from the eval deployment context before treating them as Step 3 evidence
 
 ### Deployment
 
@@ -114,7 +124,6 @@ Deployed in AWS (`us-east-1`):
 ## What is not fully done
 
 - There is no user-facing web application in this repository
-- `fixtures/deployed/examples/` exists, but representative committed stable fixtures have not been generated yet
 - There is not yet a single shared or production-facing stack beyond the current `trace-smoke` and `trace-eval` layout
 - There is not yet a labeled retrieval-evaluation harness with metrics such as `Recall@k` or `Precision@k`
 - There are not yet benchmark artifacts for latency, memory footprint, or cost-per-query

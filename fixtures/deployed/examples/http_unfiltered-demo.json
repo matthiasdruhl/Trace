@@ -1,0 +1,60 @@
+{
+  "case_id": "unfiltered-demo",
+  "channel": "http",
+  "request": {
+    "include_text": true,
+    "limit": 5,
+    "query_vector": {
+      "_redacted": true,
+      "dim": 1536
+    },
+    "sql_filter": ""
+  },
+  "response": {
+    "k": 5,
+    "ok": true,
+    "query_dim": 1536,
+    "results": [
+      {
+        "city_code": "PAR-VTC",
+        "doc_type": "Vehicle_Inspection_Audit",
+        "incident_id": "671b0882-18b3-519c-9be1-0e71bcb55de7",
+        "score": 0.5829675197601318,
+        "text_content": "Inspectors in PAR-VTC marked VIN FFWW5GBZ3N3C5BGX8 as overdue for a required safety inspection and opened an audit task for driver DRV-435725444 with a filing deadline of 2025-11-07. Safety score thresholds are evaluated quarterly and can affect incentive eligibility. Incident narratives should reference trip IDs, timestamps, and any in-app safety tool activations. These records are intentionally paired with near-miss incident notes that reuse words like inspection, mechanic, and photos. Escalation to tier-2 enforcement may apply if remediation milestones are missed. Where a rider complaint overlaps with a vehicle defect, both tracks must be documented separately. The city workflow checks odometer snapshots, third-party mechanic attestation, and decal visibility before closing the audit. Fleet operators are reminded that permit decals must remain visible and match active vehicle records. Permit renewals require payment confirmation and updated vehicle registration on file. Incident narratives should reference trip IDs, timestamps, and any in-app safety tool activations. Background re-check cadence is governed by municipal addenda and may differ from corporate defaults. Incident narratives should reference trip IDs, timestamps, and any in-app safety tool activations. These records are intentionally paired with near-miss incident notes that reuse words like inspection, mechanic, and photos. Data subject requests must be fulfilled within the timeline specified by regional privacy law. City regulators may impose daily fines until proof of correction is uploaded",
+        "timestamp": "2022-11-16T10:19:00+00:00"
+      },
+      {
+        "city_code": "PAR-VTC",
+        "doc_type": "Vehicle_Inspection_Audit",
+        "incident_id": "723cd8ed-4de9-5422-9355-0c3c627bf7d4",
+        "score": 0.5910736322402954,
+        "text_content": "Inspectors in PAR-VTC marked VIN 85JHE35GUREULLTV1 as overdue for a required safety inspection and opened an audit task for driver DRV-275884714 with a filing deadline of 2026-03-09. Escalation to tier-2 enforcement may apply if remediation milestones are missed. Safety score thresholds are evaluated quarterly and can affect incentive eligibility. Where a rider complaint overlaps with a vehicle defect, both tracks must be documented separately. The jurisdiction requires contemporaneous upload of corrected filings within the statutory window. Data subject requests must be fulfilled within the timeline specified by regional privacy law. The city workflow checks odometer snapshots, third-party mechanic attestation, and decal visibility before closing the audit. Insurance certificates must explicitly name the platform entity and list applicable endorsements. Stale documentation in the partner portal can cause automatic trip throttling for affected drivers. Data subject requests must be fulfilled within the timeline specified by regional privacy law. Fleet operators are reminded that permit decals must remain visible and match active vehicle records. These records are intentionally paired with near-miss incident notes that reuse words like inspection, mechanic, and photos. Cross-border trips may trigger supplemental reporting obligations under bilateral MOUs. These records are intentionally paired with near-miss incident notes that reuse words",
+        "timestamp": "2021-05-14T22:30:15+00:00"
+      },
+      {
+        "city_code": "SAO-DTP",
+        "doc_type": "Vehicle_Inspection_Audit",
+        "incident_id": "7c057a9f-3cf0-5ddc-99f1-81bdfa791116",
+        "score": 0.5911962389945984,
+        "text_content": "Inspectors in SAO-DTP marked VIN FTP72UNAAYXK1EFAR as overdue for a required safety inspection and opened an audit task for driver DRV-454245608 with a filing deadline of 2025-01-22. The jurisdiction requires contemporaneous upload of corrected filings within the statutory window. Safety score thresholds are evaluated quarterly and can affect incentive eligibility. Fleet operators are reminded that permit decals must remain visible and match active vehicle records. Permit renewals require payment confirmation and updated vehicle registration on file. Fleet operators are reminded that permit decals must remain visible and match active vehicle records. Data subject requests must be fulfilled within the timeline specified by regional privacy law. These records are intentionally paired with near-miss incident notes that reuse words like inspection, mechanic, and photos. Stale documentation in the partner portal can cause automatic trip throttling for affected drivers. The jurisdiction requires contemporaneous upload of corrected filings within the statutory window. Safety score thresholds are evaluated quarterly and can affect incentive eligibility. Safety score thresholds are evaluated quarterly and can affect incentive eligibility. These records are intentionally paired with near-miss incident notes that reuse words like inspection, mechanic, and photos. The city workflow checks odometer snapshots, third-party mechanic attestation, and decal visibility before closing the audit. Auditors may request raw inspection photos and third-party mechanic sign-off forms. Insurance certificates must",
+        "timestamp": "2021-12-02T19:07:40+00:00"
+      },
+      {
+        "city_code": "PAR-VTC",
+        "doc_type": "Vehicle_Inspection_Audit",
+        "incident_id": "3a4fd9f1-4052-5b0f-9926-4e0408a410f7",
+        "score": 0.5942466259002686,
+        "text_content": "Inspectors in PAR-VTC marked VIN 2969UN0EA3DCGHW86 as overdue for a required safety inspection and opened an audit task for driver DRV-847265746 with a filing deadline of 2023-03-24. A missed inspection window can trigger temporary throttling even when the vehicle remains otherwise active in the fleet ledger. Where a rider complaint overlaps with a vehicle defect, both tracks must be documented separately. Permit renewals require payment confirmation and updated vehicle registration on file. A missed inspection window can trigger temporary throttling even when the vehicle remains otherwise active in the fleet ledger. The city workflow checks odometer snapshots, third-party mechanic attestation, and decal visibility before closing the audit. City regulators may impose daily fines until proof of correction is uploaded and verified. Fleet operators are reminded that permit decals must remain visible and match active vehicle records. Safety score thresholds are evaluated quarterly and can affect incentive eligibility. The city workflow checks odometer snapshots, third-party mechanic attestation, and decal visibility before closing the audit. Fleet operators are reminded that permit decals must remain visible and match active vehicle records. Incident narratives should reference trip IDs, timestamps, and any in-app safety tool activations. Escalation to tier-2 enforcement may apply if remediation milestones are missed. The jurisdiction requires",
+        "timestamp": "2021-05-10T14:33:07+00:00"
+      },
+      {
+        "city_code": "NYC-TLC",
+        "doc_type": "Vehicle_Inspection_Audit",
+        "incident_id": "63a9f99c-d78b-514a-8363-418f544c6edf",
+        "score": 0.5961900353431702,
+        "text_content": "Inspectors in NYC-TLC marked VIN 65JEGTZMBWR2U793U as overdue for a required safety inspection and opened an audit task for driver DRV-162338999 with a filing deadline of 2023-01-28. Safety score thresholds are evaluated quarterly and can affect incentive eligibility. The city workflow checks odometer snapshots, third-party mechanic attestation, and decal visibility before closing the audit. Insurance certificates must explicitly name the platform entity and list applicable endorsements. These records are intentionally paired with near-miss incident notes that reuse words like inspection, mechanic, and photos. Where a rider complaint overlaps with a vehicle defect, both tracks must be documented separately. Where a rider complaint overlaps with a vehicle defect, both tracks must be documented separately. Insurance certificates must explicitly name the platform entity and list applicable endorsements. These records are intentionally paired with near-miss incident notes that reuse words like inspection, mechanic, and photos. Permit renewals require payment confirmation and updated vehicle registration on file. Stale documentation in the partner portal can cause automatic trip throttling for affected drivers. Auditors may request raw inspection photos and third-party mechanic sign-off forms. Background re-check cadence is governed by municipal addenda and may differ from corporate defaults. Auditors may request raw inspection photos and third-party mechanic sign-off forms. These records are intentionally paired with near-miss incident notes that reuse words like inspection, mechanic, and photos. Incident narratives should reference trip IDs, timestamps, and",
+        "timestamp": "2023-04-21T23:11:46+00:00"
+      }
+    ]
+  }
+}
