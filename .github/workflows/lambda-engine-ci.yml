@@ -2,8 +2,9 @@ name: lambda-engine CI
 
 on:
   push:
-    branches-ignore:
+    branches:
       - main
+  pull_request:
     paths:
       - 'lambda-engine/**'
       - 'mcp-bridge/**'

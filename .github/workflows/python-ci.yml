@@ -2,8 +2,9 @@ name: python CI
 
 on:
   push:
-    branches-ignore:
+    branches:
       - main
+  pull_request:
     paths:
       - 'scripts/**'
       - 'fixtures/eval/**'
