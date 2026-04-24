@@ -38,6 +38,8 @@ DEFAULT_TIMEOUT_SECONDS = 30
 DEFAULT_QUERY_VECTOR_DIM = 1536
 STABLE_FIXTURES_DIR = Path("fixtures/deployed/examples")
 SCRUBBED_URL_PLACEHOLDER = "https://search.example.invalid/search"
+EVAL_STACK_NAME = "trace-eval"
+EVAL_DATASET_URI = "s3://trace-vault/trace/eval/lance/"
 
 
 def validate_run_flags(args: argparse.Namespace) -> None:
@@ -54,6 +56,58 @@ def validate_run_flags(args: argparse.Namespace) -> None:
             "--write-stable-fixtures requires a full run that produces HTTP and MCP artifacts; "
             "remove --dry-run or omit --write-stable-fixtures."
         )
+    if not (args.stable_fixture_cases or "").strip():
+        raise ProofPathError(
+            "--write-stable-fixtures requires explicit --stable-fixture-cases. "
+            "Pass a comma-separated list of case_ids to promote so fixture selection does not "
+            "depend on golden_cases.json ordering."
+        )
+
+
+def _normalize_s3_uri(uri: str | None) -> str | None:
+    if uri is None:
+        return None
+    cleaned = uri.strip()
+    if not cleaned:
+        return None
+    return cleaned.rstrip("/") + "/"
+
+
+def _eval_stable_fixture_context_mismatches(ctx: "RuntimeContext") -> list[str]:
+    problems: list[str] = []
+    dataset_uri = _normalize_s3_uri(ctx.dataset_uri)
+    expected_dataset_uri = _normalize_s3_uri(EVAL_DATASET_URI)
+
+    if dataset_uri != expected_dataset_uri:
+        actual_dataset = ctx.dataset_uri or "<unset>"
+        problems.append(
+            f"dataset_uri must be {EVAL_DATASET_URI!r}, got {actual_dataset!r}"
+        )
+
+    if ctx.stack_name is not None and ctx.stack_name != EVAL_STACK_NAME:
+        problems.append(
+            f"stack_name must be {EVAL_STACK_NAME!r} when provided, got {ctx.stack_name!r}"
+        )
+
+    return problems
+
+
+def assert_stable_fixture_promotion_context(
+    ctx: "RuntimeContext",
+    *,
+    allow_non_eval_stable_fixtures: bool,
+) -> None:
+    problems = _eval_stable_fixture_context_mismatches(ctx)
+    if not problems or allow_non_eval_stable_fixtures:
+        return
+
+    raise ProofPathError(
+        "--write-stable-fixtures is blocked because this run is not in the trusted eval "
+        "context. Stable fixtures must come from the eval deployment context. "
+        f"Context check failed: {'; '.join(problems)}. "
+        "If you intentionally need to promote from a different deployed source, rerun with "
+        "--allow-non-eval-stable-fixtures."
+    )
 
 
 def _parse_expected_ids(case_id: str, raw: Any) -> list[str]:
@@ -248,10 +302,21 @@ def parse_args() -> argparse.Namespace:
         help="After a successful run, write scrubbed examples under fixtures/deployed/examples/.",
     )
     parser.add_argument(
+        "--allow-non-eval-stable-fixtures",
+        action="store_true",
+        help=(
+            "Override the stable-fixture safety guard and allow promotion outside the trusted "
+            "eval stack / dataset context."
+        ),
+    )
+    parser.add_argument(
         "--stable-fixture-cases",
         type=str,
         default="",
-        help="Comma-separated case_ids to promote (default: first unfiltered + first filtered-looking case).",
+        help=(
+            "Comma-separated case_ids to promote. Required with --write-stable-fixtures so "
+            "fixture selection is explicit and not derived from case ordering."
+        ),
     )
     parser.add_argument(
         "--dry-run",
@@ -903,6 +968,51 @@ def append_case_to_manifest(manifest: RunManifest, case_result: CaseResult) -> N
     manifest.cases.append(asdict(case_result))
 
 
+def _missing_validation_steps(case_result: CaseResult) -> list[str]:
+    missing: list[str] = []
+    if not case_result.http_ok:
+        missing.append("HTTP")
+    if not case_result.mcp_ok:
+        missing.append("MCP")
+    return missing
+
+
+def ensure_complete_proof_run(
+    case_results: list[CaseResult],
+    *,
+    dry_run: bool,
+    skip_mcp: bool,
+    allow_missing_vectors: bool,
+) -> None:
+    incomplete: list[str] = []
+    for case_result in case_results:
+        missing = _missing_validation_steps(case_result)
+        if missing:
+            incomplete.append(f"{case_result.case_id} ({' and '.join(missing)} missing)")
+
+    if not incomplete:
+        return
+
+    mode_notes: list[str] = []
+    if dry_run:
+        mode_notes.append("dry-run mode skips live validation")
+    if skip_mcp:
+        mode_notes.append("--skip-mcp skips MCP validation")
+    if allow_missing_vectors:
+        mode_notes.append(
+            "--allow-missing-vectors may skip HTTP validation when no query vector is available"
+        )
+
+    detail = "; ".join(mode_notes)
+    if detail:
+        detail = f" ({detail})"
+
+    raise ProofPathError(
+        "Incomplete proof run: Step 3 requires both HTTP and MCP validation for every case"
+        f"{detail}. Incomplete cases: {', '.join(incomplete)}."
+    )
+
+
 def manifest_for_run(run_id: str, now: datetime, ctx: RuntimeContext) -> RunManifest:
     return RunManifest(
         run_id=run_id,
@@ -922,20 +1032,19 @@ def write_manifest(run_dir: Path, manifest: RunManifest) -> None:
     write_json(run_dir / "manifest.json", asdict(manifest))
 
 
-def _default_stable_case_ids(cases: list[GoldenCase]) -> list[str]:
-    unfiltered: str | None = None
-    filtered: str | None = None
-    for c in cases:
-        if unfiltered is None and not str(c.sql_filter).strip():
-            unfiltered = c.case_id
-        if filtered is None and str(c.sql_filter).strip():
-            filtered = c.case_id
-    out: list[str] = []
-    if unfiltered:
-        out.append(unfiltered)
-    if filtered and filtered not in out:
-        out.append(filtered)
-    return out
+def _load_required_stable_fixture_artifact(path: Path, *, case_id: str, label: str) -> dict[str, Any]:
+    if not path.is_file():
+        raise ProofPathError(
+            f"Missing {label} artifact for {case_id}: {path}. Stable fixture promotion requires "
+            "both request and response artifacts for HTTP and MCP."
+        )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ProofPathError(
+            f"Invalid {label} artifact for {case_id}: expected a JSON object in {path}, "
+            f"got {type(payload).__name__}."
+        )
+    return payload
 
 
 def promote_stable_fixtures(
@@ -945,34 +1054,29 @@ def promote_stable_fixtures(
     dest_dir: Path,
 ) -> None:
     ensure_dir(dest_dir)
+    case_ids = {c.case_id for c in cases}
     for cid in stable_case_ids:
-        if cid not in {c.case_id for c in cases}:
+        if cid not in case_ids:
             raise ProofPathError(f"Unknown stable fixture case_id: {cid}")
         http_resp_path = run_dir / "http" / f"{cid}.response.json"
         mcp_resp_path = run_dir / "mcp" / f"{cid}.response.json"
         http_req_path = run_dir / "http" / f"{cid}.request.json"
         mcp_req_path = run_dir / "mcp" / f"{cid}.request.json"
-        if not http_resp_path.is_file() or not mcp_resp_path.is_file():
-            raise ProofPathError(
-                f"Missing HTTP or MCP artifacts for {cid}; cannot write stable fixtures."
-            )
-        http_resp = json.loads(http_resp_path.read_text(encoding="utf-8"))
-        mcp_resp = json.loads(mcp_resp_path.read_text(encoding="utf-8"))
-        http_req = (
-            json.loads(http_req_path.read_text(encoding="utf-8"))
-            if http_req_path.is_file()
-            else None
+        http_req = _load_required_stable_fixture_artifact(
+            http_req_path, case_id=cid, label="HTTP request"
         )
-        mcp_req = (
-            json.loads(mcp_req_path.read_text(encoding="utf-8"))
-            if mcp_req_path.is_file()
-            else None
+        http_resp = _load_required_stable_fixture_artifact(
+            http_resp_path, case_id=cid, label="HTTP response"
+        )
+        mcp_req = _load_required_stable_fixture_artifact(
+            mcp_req_path, case_id=cid, label="MCP request"
+        )
+        mcp_resp = _load_required_stable_fixture_artifact(
+            mcp_resp_path, case_id=cid, label="MCP response"
         )
 
-        http_req_stable = (
-            scrub_value(redact_http_request_for_stable_fixture(http_req), scrub_urls=True)
-            if http_req
-            else None
+        http_req_stable = scrub_value(
+            redact_http_request_for_stable_fixture(http_req), scrub_urls=True
         )
         http_bundle = {
             "case_id": cid,
@@ -983,7 +1087,7 @@ def promote_stable_fixtures(
         mcp_bundle = {
             "case_id": cid,
             "channel": "mcp",
-            "request": scrub_value(mcp_req, scrub_urls=True) if mcp_req else None,
+            "request": scrub_value(mcp_req, scrub_urls=True),
             "response": scrub_value(stable_response_view(mcp_resp), scrub_urls=True),
         }
         write_json(dest_dir / f"http_{cid}.json", http_bundle)
@@ -1007,6 +1111,7 @@ def main() -> int:
         cases = load_cases(args.cases)
         ctx = resolve_runtime_context(args)
         manifest = manifest_for_run(run_id, now, ctx)
+        case_results: list[CaseResult] = []
 
         dry_run = bool(args.dry_run)
         mock_embeddings = bool(args.mock_embeddings)
@@ -1024,16 +1129,24 @@ def main() -> int:
                 skip_mcp=args.skip_mcp,
                 dry_run=dry_run,
             )
+            case_results.append(case_result)
             append_case_to_manifest(manifest, case_result)
 
         write_manifest(run_dir, manifest)
+        ensure_complete_proof_run(
+            case_results,
+            dry_run=dry_run,
+            skip_mcp=bool(args.skip_mcp),
+            allow_missing_vectors=bool(args.allow_missing_vectors),
+        )
 
         if args.write_stable_fixtures and not dry_run:
+            assert_stable_fixture_promotion_context(
+                ctx,
+                allow_non_eval_stable_fixtures=bool(args.allow_non_eval_stable_fixtures),
+            )
             raw = (args.stable_fixture_cases or "").strip()
-            if raw:
-                ids = [x.strip() for x in raw.split(",") if x.strip()]
-            else:
-                ids = _default_stable_case_ids(cases)
+            ids = [x.strip() for x in raw.split(",") if x.strip()]
             if not ids:
                 raise ProofPathError("No cases selected for stable fixture promotion.")
             promote_stable_fixtures(run_dir, cases, ids, STABLE_FIXTURES_DIR)

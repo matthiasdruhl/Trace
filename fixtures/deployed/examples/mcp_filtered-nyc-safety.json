@@ -1,0 +1,33 @@
+{
+  "case_id": "filtered-nyc-safety",
+  "channel": "mcp",
+  "request": {
+    "include_text": true,
+    "limit": 5,
+    "query_text": "safety incident reports in New York with supporting narrative",
+    "sql_filter": "city_code = 'NYC-TLC' AND doc_type = 'Safety_Incident_Log'"
+  },
+  "response": {
+    "k": 5,
+    "ok": true,
+    "query_dim": 1536,
+    "results": [
+      {
+        "city_code": "NYC-TLC",
+        "doc_type": "Safety_Incident_Log",
+        "incident_id": "050e8765-d611-56a2-824f-d340c8215d30",
+        "score": 0.7901465892791748,
+        "text_content": "A safety incident follow-up in NYC-TLC references a post-collision inspection of VIN PL4WE4ZKZYYF1RVN7, but the record is an incident narrative for driver DRV-442342416, not an overdue audit finding. Data subject requests must be fulfilled within the timeline specified by regional privacy law. Cross-border trips may trigger supplemental reporting obligations under bilateral MOUs. Incident narratives should reference trip IDs, timestamps, and any in-app safety tool activations. Stale documentation in the partner portal can cause automatic trip throttling for affected drivers. Auditors may request raw inspection photos and third-party mechanic sign-off forms. City regulators may impose daily fines until proof of correction is uploaded and verified. Safety score thresholds are evaluated quarterly and can affect incentive eligibility. Background re-check cadence is governed by municipal addenda and may differ from corporate defaults. Safety score thresholds are evaluated quarterly and can affect incentive eligibility. These records are intentionally paired with near-miss incident notes that reuse words like inspection, mechanic, and photos. Data subject requests must be fulfilled within the timeline specified by regional privacy law. The city workflow checks odometer snapshots, third-party mechanic attestation, and decal visibility before closing the audit. The city workflow checks odometer snapshots, third-party mechanic attestation, and decal visibility before closing the audit. Escalation to tier-2 enforcement may apply if remediation milestones are missed. Escalation to tier-2 enforcement may apply if remediation milestones are missed. These records are intentionally paired with near-miss incident notes that",
+        "timestamp": "2022-12-19T09:36:18+00:00"
+      },
+      {
+        "city_code": "NYC-TLC",
+        "doc_type": "Safety_Incident_Log",
+        "incident_id": "d356a4e0-e854-5d7c-bc23-c4c6b4e4e097",
+        "score": 0.8386723399162292,
+        "text_content": "A safety incident follow-up in NYC-TLC references a post-collision inspection of VIN 6CXH2B7T50W5C7GKW, but the record is an incident narrative for driver DRV-073690109, not an overdue audit finding. Background re-check cadence is governed by municipal addenda and may differ from corporate defaults. Stale documentation in the partner portal can cause automatic trip throttling for affected drivers. Cross-border trips may trigger supplemental reporting obligations under bilateral MOUs. These records are intentionally paired with near-miss incident notes that reuse words like inspection, mechanic, and photos. These records are intentionally paired with near-miss incident notes that reuse words like inspection, mechanic, and photos. A missed inspection window can trigger temporary throttling even when the vehicle remains otherwise active in the fleet ledger. Auditors may request raw inspection photos and third-party mechanic sign-off forms. Fleet operators are reminded that permit decals must remain visible and match active vehicle records. Data subject requests must be fulfilled within the timeline specified by regional privacy law. City regulators may impose daily fines until proof of correction is uploaded and verified. Safety score thresholds are evaluated quarterly and can affect incentive eligibility. Incident narratives should reference trip IDs, timestamps, and any in-app safety tool activations. The jurisdiction requires contemporaneous upload of corrected filings within the statutory window. Cross-border trips may trigger supplemental reporting obligations under bilateral MOUs. Fleet operators are reminded that permit decals must remain visible and match active vehicle records. Background re-check cadence is governed by municipal addenda and may differ from corporate defaults. Fleet operators are reminded that permit decals must remain visible and match active vehicle records. These records are intentionally",
+        "timestamp": "2021-08-11T23:03:22+00:00"
+      }
+    ]
+  }
+}

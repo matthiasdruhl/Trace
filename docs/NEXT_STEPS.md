@@ -1,6 +1,6 @@
 # Trace next steps
 
-Last updated: 2026-04-23
+Last updated: 2026-04-24
 
 This is the active prioritized backlog for the current implementation, not a sprint-era planning memo.
 
@@ -84,7 +84,7 @@ This is the point after which deployed-path verification becomes worth doing, be
 
 ## 3. Prove the deployed path end to end
 
-Status: `Partially complete`, and now the active next milestone
+Status: `Complete`
 
 After steps 1 and 2 are complete, prove the live stack against the embedding-backed eval dataset.
 
@@ -109,11 +109,23 @@ Already implemented in code:
 - `fixtures/deployed/golden_cases.json` for proof-oriented cases
 - targeted proof-path tests in `tests/`
 
-Still not completed:
+Completed in this workspace:
 
-- broader repeatable proof coverage beyond the first successful eval-stack run
-- representative committed stable fixtures under `fixtures/deployed/examples/`
-- any future shared/main-stack cutover beyond the current `trace-smoke` and `trace-eval` layout
+- a successful `trace-eval` proof run exists with all five golden cases passing through both direct HTTP and MCP in the same full run
+- representative stable fixtures are committed under `fixtures/deployed/examples/` for one unfiltered and one equality-filtered case
+- the proof runbook now defines the repeatable Step 3 acceptance sequence, including artifact inspection and fixture promotion guidance
+
+Acceptance boundary for this completed step:
+
+- Step 3 completion means a full eval-stack proof run with both HTTP and MCP validation
+- `--dry-run`, `--skip-mcp`, `--allow-missing-vectors`, and `--mock-embeddings` remain useful operator modes, but they do not satisfy Step 3 on their own
+- stable fixtures are only acceptable as Step 3 proof artifacts when they come from a full run in the trusted eval context; the runner now requires explicit `--stable-fixture-cases`, requires full HTTP and MCP request/response artifacts for each selected case, and blocks promotion unless the manifest `dataset_uri` is exactly `s3://trace-vault/trace/eval/lance/` and any provided `--stack-name` is `trace-eval`
+- operators can still bypass that promotion guard with `--allow-non-eval-stable-fixtures`, so Step 3 trust still depends on checking the manifest and commit intent rather than assuming every promoted fixture is automatically acceptable evidence
+
+Remaining follow-up that belongs elsewhere:
+
+- broader hardening, replay/smoke variants, and CI/process decisions remain Step 6 work
+- any future shared/main-stack cutover beyond the current `trace-smoke` and `trace-eval` layout remains separate deployment follow-up
 
 ## 4. Prove retrieval relevance, not just infrastructure health
 
