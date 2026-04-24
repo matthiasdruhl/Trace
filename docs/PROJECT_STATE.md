@@ -18,7 +18,8 @@ Against the active backlog in `docs/NEXT_STEPS.md`, the current status is:
 - Step 1 (ingestion/retrieval story): implemented in code
 - Step 2 (eval dataset path): complete
 - Step 3 (deployed proof path): complete
-- Steps 4, 7, 8, and 9: not implemented yet
+- Step 4 (retrieval relevance harness): complete
+- Steps 7, 8, and 9: not implemented yet
 - Steps 5 and 6: partially complete through early docs/tooling, but not finished as operator-ready systems
 
 ## What is implemented
@@ -75,6 +76,40 @@ Important current behavior:
 - the corresponding local validation report passed `7/7` cases and was recorded in the seed manifest
 - the eval dataset is now uploaded to `s3://trace-vault/trace/eval/lance/`
 
+### Retrieval relevance evaluation
+
+Implemented in `scripts/evaluate_retrieval.py`, `scripts/filter_expr.py`, and `fixtures/eval/`:
+
+- labeled local relevance cases keyed by exact `incident_id`
+- shared constrained-filter parsing and Python-side filter evaluation reused across local validation and retrieval evaluation
+- local scoring for `trace_prefilter_vector`, `keyword_only`, and `vector_postfilter`
+- source-dataset validation that checks labeled `incident_id` presence, uniqueness, and filtered-case label/filter consistency before scoring
+- machine-readable JSON reports plus compact Markdown summaries
+- targeted unit coverage for fixture loading, filter behavior, keyword ranking, metrics, and report writing
+
+Current local retrieval-eval status:
+
+- the first local retrieval evaluation run completed successfully under `artifacts/evaluations/20260424T062035Z`
+- that run used the local eval dataset under `.test-tmp/eval-seed/`
+- that run used the default `vector_postfilter` candidate multiplier of `10` with no fixed candidate-limit override
+- `trace_prefilter_vector` reached `1.000` average `Recall@k`, `0.600` average `Precision@k`, and `1.000` filtered strict accuracy on the current labeled set
+- `keyword_only` reached `0.238` average `Recall@k`, `0.143` average `Precision@k`, and `0.500` filtered strict accuracy
+- `vector_postfilter` matched `trace_prefilter_vector` on the current labeled set, but that comparison is sensitive to the configured postfilter candidate window and the small local corpus
+
+Metric definitions used by the harness:
+
+- `Recall@k`: labeled relevant records returned within `k`
+- `Precision@k`: labeled relevant records returned divided by `k`, not by the number of rows actually returned
+- `Precision@returned`: labeled relevant records returned divided by the number of rows actually returned
+- filtered strict success: for filtered cases, every returned row matches the filter and the full labeled positive set is retrieved within `k`
+- filtered strict accuracy: average filtered strict success across filtered cases
+
+Boundary on these claims:
+
+- this harness is local evidence on a small labeled corpus, not a final benchmark suite
+- it does not prove that the deployed stack is equivalent to the local harness path
+- it should not be treated as proof of broad retrieval superiority outside the current corpus
+
 ### Deployed proof path
 
 Implemented in `scripts/prove_deployed_path.py`, `scripts/proof_mcp_stdio.py`, `fixtures/deployed/`, and `tests/`:
@@ -125,7 +160,6 @@ Deployed in AWS (`us-east-1`):
 
 - There is no user-facing web application in this repository
 - There is not yet a single shared or production-facing stack beyond the current `trace-smoke` and `trace-eval` layout
-- There is not yet a labeled retrieval-evaluation harness with metrics such as `Recall@k` or `Precision@k`
 - There are not yet benchmark artifacts for latency, memory footprint, or cost-per-query
 - There is not yet a completed deployment history for smoke/eval stacks, although `docs/DEPLOYMENT_RUNBOOK.md` now documents that workflow
 

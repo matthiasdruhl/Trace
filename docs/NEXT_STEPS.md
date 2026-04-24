@@ -129,37 +129,56 @@ Remaining follow-up that belongs elsewhere:
 
 ## 4. Prove retrieval relevance, not just infrastructure health
 
-Status: `Not implemented yet`
+Status: `Complete`
 
 Deployment success and latency numbers are not enough on their own. The project also needs evidence that the semantic retrieval path actually returns better results than simpler baselines.
 
-Add an evaluation harness with:
+Implemented in code:
 
-- a labeled set of representative natural-language queries
-- expected relevant records for each query
-- adversarial cases where keyword overlap should not be enough
-- filtered-query cases where the correct answer depends on both semantics and metadata constraints
+- `scripts/evaluate_retrieval.py` runs a local retrieval evaluation harness against the embedding-backed eval dataset
+- `fixtures/eval/retrieval_relevance_cases.json` provides labeled relevance cases with exact `incident_id` judgments
+- `scripts/filter_expr.py` now provides shared constrained-filter parsing, Lance compilation, and Python-side row evaluation for both the validator and the retrieval harness
+- `tests/test_evaluate_retrieval.py` covers case loading, filter evaluation, keyword scoring, post-filter behavior, metrics, and report output
+- `docs/retrieval-eval-runbook.md` documents reruns and metric interpretation
 
-Measure and publish:
+The harness currently scores three methods on the same labeled local cases:
+
+- `trace_prefilter_vector`
+- `keyword_only`
+- `vector_postfilter`
+
+Metrics published by the harness:
 
 - `Recall@k`
-- `Precision@k`
-- filtered-query accuracy
-- qualitative notes for failure cases and ambiguous queries
+- corrected `Precision@k` with denominator `k` (the case limit)
+- `Precision@returned`
+- filtered strict success per filtered case
+- filtered strict accuracy aggregated across filtered cases
+- qualitative failure notes when Trace loses to a baseline or misses labeled positives
 
-Compare Trace against at least one baseline such as:
+Important scope notes:
 
-- keyword-only retrieval
-- vector search without metadata prefilter
-- another lightweight retrieval baseline if it is cheap to add
+- labeled `incident_id` values are validated against the source dataset before scoring
+- the `vector_postfilter` baseline now uses a configurable candidate window, so its results should be read together with that configuration
+- this harness is local evidence on a small labeled corpus; it does not establish deployed-path equivalence or broad retrieval superiority
 
-Additional follow-up that belongs here:
+Completed in this workspace:
 
-- promote deployed proof cases into a labeled evaluation set once the dataset story is semantically honest
-- add stronger expected-rank or top-k assertions only after the evaluation corpus is stable enough to support them
-- distinguish clearly between "deployment proof fixtures" and "retrieval quality judgments" so the two do not get conflated
+- a first local relevance run completed successfully under `artifacts/evaluations/20260424T062035Z/`
+- that run used the eval dataset under `.test-tmp/eval-seed/` and the current `text-embedding-3-small` / `1536` setup
+- that run used the default `vector_postfilter` candidate multiplier of `10` with no fixed candidate-limit override
+- `trace_prefilter_vector` reached `1.000` average `Recall@k`, `0.600` average `Precision@k`, and `1.000` filtered strict accuracy on the current labeled cases
+- `keyword_only` reached `0.238` average `Recall@k`, `0.143` average `Precision@k`, and `0.500` filtered strict accuracy
+- `vector_postfilter` matched `trace_prefilter_vector` on this particular run, but that comparison remains sensitive to the configured postfilter candidate window and the small corpus size
 
-The goal is to be able to say, with evidence, that Trace is not just working code but a better retrieval architecture for the target use case.
+Acceptance boundary for this completed step:
+
+- Step 4 completion means a local labeled relevance harness exists, is rerunnable, and has produced at least one real report against the embedding-backed eval dataset
+- the current labeled cases are intentionally small and synthetic; they are evidence of retrieval quality progress, not a final benchmark suite
+- proof fixtures and labeled relevance judgments remain separate artifacts and should not be conflated
+- Step 4 does not prove that the deployed stack is path-equivalent to the local harness, and it does not justify broader claims than this corpus supports
+
+The goal is to maintain bounded, rerunnable local evidence about whether the current retrieval approach retrieves the labeled records more reliably than simple baselines on this corpus.
 
 ## 5. Add deployment and operations documentation
 
