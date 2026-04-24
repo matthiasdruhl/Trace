@@ -68,6 +68,29 @@ model alignment, `1536`-dimension consistency, the repo's restricted
 `sql_filter` syntax, and a few expected retrieval patterns; it is not a full
 relevance harness, benchmark corpus, or proof of deployed-path equivalence.
 
+Run the local retrieval relevance harness:
+
+```bash
+set OPENAI_API_KEY=...
+python scripts/evaluate_retrieval.py --output-dir .test-tmp/eval-seed --table-name uber_audit --cases-path fixtures/eval/retrieval_relevance_cases.json
+```
+
+That command scores three local methods on a small labeled corpus:
+
+- the harness's local `trace_prefilter_vector` method
+- a keyword-only lexical baseline
+- a `vector_postfilter` baseline that retrieves a configurable candidate pool
+  before applying the filter in Python
+
+Before scoring, the harness validates that every labeled `incident_id` exists
+in the source dataset and that filtered-case labels satisfy the case filter.
+It then writes a JSON report plus a Markdown summary under
+`artifacts/evaluations/<run_id>/`.
+
+This is local retrieval evidence only. It does not prove deployed-path
+equivalence, and it should not be treated as a broad retrieval benchmark beyond
+the small local labeled corpus.
+
 Generated outputs under the selected `output_dir` such as `lance_seed/`,
 `_smoke_lance_seed/`, `<table>.source.parquet`, and
 `<table>.seed-manifest.json` should remain untracked.
@@ -76,6 +99,7 @@ Current local status:
 
 - a fresh embedding-backed local eval dataset has been generated under `.test-tmp/eval-seed/`
 - the corresponding local validation run passed `7/7` curated cases
+- the first local retrieval evaluation run completed under `artifacts/evaluations/20260424T062035Z/`
 - the eval dataset is now uploaded to `s3://trace-vault/trace/eval/lance/`
 - the smoke stack `trace-smoke` is deployed in `us-east-1`
 - the eval stack `trace-eval` is deployed in `us-east-1`
@@ -142,7 +166,7 @@ Current status:
 - `trace-smoke` search URL: `https://u73d8vk2yl.execute-api.us-east-1.amazonaws.com/search`
 - `trace-eval` search URL: `https://kp2kjz4fkg.execute-api.us-east-1.amazonaws.com/search`
 - the first eval proof run passed and wrote artifacts under `artifacts/validation-runs/20260423T233528Z`
-- representative stable fixtures have not been committed yet
+- representative stable fixtures are committed under `fixtures/deployed/examples/`
 
 ## Documentation map
 
@@ -153,6 +177,7 @@ Current status:
 - `docs/deployed-proof-runbook.md`: how to run the deployed proof path and interpret artifacts
 - `docs/PROJECT_STATE.md`: current implementation snapshot
 - `docs/NEXT_STEPS.md`: active prioritized backlog
+- `docs/retrieval-eval-runbook.md`: how to run the local labeled relevance harness and interpret its metrics
 - `docs/S3_MIGRATION.md`: current smoke-vs-eval S3 migration plan and actual migration status
 - `docs/RUST_CRATE_DOCS.md`: external Rust dependency documentation index
 - `docs/features/deployed-proof-path.md`: feature spec for the deployed proof-path implementation

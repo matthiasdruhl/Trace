@@ -1,0 +1,88 @@
+[
+  {
+    "id": "insurance-lapse-relevance",
+    "query": "Which fleet vehicles had commercial auto coverage lapse and were suspended until a new insurance certificate was uploaded?",
+    "limit": 5,
+    "relevant_incident_ids": [
+      "53d0c4a4-ee39-5489-aae1-138d5d5f1e2d",
+      "33b05273-4380-5229-9d67-17cf62d38bea",
+      "e2591fd3-586e-5f60-97a2-1d3dbb7a839d"
+    ],
+    "category": "adversarial_keyword_overlap",
+    "notes": "Insurance lapse queries share certificate vocabulary with permit-renewal near misses."
+  },
+  {
+    "id": "inspection-overdue-relevance",
+    "query": "Find overdue vehicle inspection audit cases that still need mechanic sign-off paperwork.",
+    "limit": 5,
+    "relevant_incident_ids": [
+      "f6bd4883-a127-59a8-9d70-5ac6d139d780",
+      "2579cfa4-e10c-5ec3-bcee-aef67f72ce52",
+      "4476f7c2-a1b6-5f8a-9611-2507852aa192"
+    ],
+    "category": "semantic",
+    "notes": "These labeled positives emphasize overdue-audit language over inspection-themed safety narratives."
+  },
+  {
+    "id": "privacy-request-relevance",
+    "query": "Show privacy deletion or erasure requests tied to retained trip and telematics records.",
+    "limit": 5,
+    "relevant_incident_ids": [
+      "cb4ea90c-53f7-5588-bd48-a823950916d9",
+      "f7348fdb-d157-5faa-869a-ec95bb1ddce2",
+      "a3822d6b-a42e-5703-934f-3fd0574d6b9e"
+    ],
+    "category": "semantic",
+    "notes": "Privacy cases intentionally overlap with background-review and retention terminology."
+  },
+  {
+    "id": "background-flag-relevance",
+    "query": "Find drivers with background screening flags that require manual adjudication before access can be restored.",
+    "limit": 5,
+    "relevant_incident_ids": [
+      "7d8fbb66-f751-5660-8769-9f354edc3128",
+      "ddd69b42-57b6-5df3-9f32-2c36c64aa666",
+      "75145ce6-c824-52f7-b8f0-f7fd68a846a5"
+    ],
+    "category": "adversarial_keyword_overlap",
+    "notes": "Background-screening language is designed to compete with privacy-export near misses."
+  },
+  {
+    "id": "permit-renewal-relevance",
+    "query": "Which drivers still have incomplete city permit renewals and need fee confirmation or registration details uploaded?",
+    "limit": 5,
+    "relevant_incident_ids": [
+      "615f9d3c-afa5-55d1-8b83-0f14ef615a67",
+      "2e9a7f14-9487-57c0-acf7-97cf15532bfa",
+      "3229cdd7-ca94-57da-a70c-de9907c56f7a"
+    ],
+    "category": "semantic",
+    "notes": "Permit-renewal queries should beat inspection-flavored near misses that share decal and compliance vocabulary."
+  },
+  {
+    "id": "sf-safety-filtered-relevance",
+    "query": "Find rider safety incident reports involving route deviation and in-app safety tools.",
+    "sql_filter": "city_code = 'SF-CPUC' AND doc_type = 'Safety_Incident_Log'",
+    "limit": 5,
+    "relevant_incident_ids": [
+      "4dbc025c-944a-50ab-a3a3-125f388018b3",
+      "1e3bfd52-b7c3-5150-8b2e-8bfdf1694c4e",
+      "8efae87e-823b-5c39-afc0-6a01bc280565"
+    ],
+    "category": "filtered",
+    "notes": "This case measures semantics plus metadata prefiltering on the same local dataset."
+  },
+  {
+    "id": "recent-mex-permit-filtered-relevance",
+    "query": "Find recent Mexico City permit renewal backlog cases that still need renewal paperwork completed.",
+    "sql_filter": "city_code = 'MEX-SEMOVI' AND doc_type = 'City_Permit_Renewal' AND timestamp >= '2025-01-01T00:00:00Z'",
+    "limit": 5,
+    "relevant_incident_ids": [
+      "d6984e76-aaa6-51f1-b649-040a1b7cc990",
+      "6353bedb-e80d-5bde-ad22-2dc0927d938b",
+      "4743f502-1266-5ad2-ad76-005a65d1e1ef"
+    ],
+    "category": "filtered",
+    "notes": "Timestamp-constrained permit retrieval exercises the shared filter parser and local filter scoring."
+  }
+]
