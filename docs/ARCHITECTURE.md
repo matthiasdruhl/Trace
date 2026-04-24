@@ -34,7 +34,7 @@ Current behavior:
 
 - `openai` is the default embedding mode for local eval/demo dataset generation
 - `random` remains an explicit smoke/infrastructure mode
-- the local embedding path is now semantically meaningful, but the shared eval prefix has not been populated yet
+- the embedding-backed eval dataset is now live at `s3://trace-vault/trace/eval/lance/`
 
 ### `lambda-engine/`
 
@@ -116,7 +116,7 @@ The Lambda parses the filter into a typed AST and compiles it into a predicate s
 - Search is tuned for S3-backed Lance datasets, not local interactive dashboards
 - The seed script keeps `1536`-dimensional output so it stays aligned with the current Lambda and MCP bridge
 - The current deployed smoke dataset is `s3://trace-vault/uber_audit.lance/`
-- The intended future eval dataset prefix is `s3://trace-vault/trace/eval/lance/`, but that cutover has not happened yet
+- The current deployed eval dataset is `s3://trace-vault/trace/eval/lance/`
 
 ## Current gaps
 

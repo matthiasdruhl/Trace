@@ -172,9 +172,12 @@ Current status:
 
 - `docs/ARCHITECTURE.md`: component-level system overview
 - `docs/API_CONTRACT.md`: request, response, auth, and filter grammar reference
+- `docs/COMPETITION_STRATEGY.md`: rubric-optimized plan for maximizing Handshake x OpenAI Codex Creator Challenge scoring
 - `docs/DATA_SPEC.md`: synthetic dataset schema and seed script behavior
+- `docs/DEMO_PLAN.md`: recommended live-demo structure, memorable queries, and proof points
 - `docs/DEPLOYMENT_RUNBOOK.md`: end-to-end deployment, upload, proof, and rollback checklist
 - `docs/deployed-proof-runbook.md`: how to run the deployed proof path and interpret artifacts
+- `docs/PITCH_VIDEO_PLAN.md`: three-minute finalist pitch structure and asset checklist
 - `docs/PROJECT_STATE.md`: current implementation snapshot
 - `docs/NEXT_STEPS.md`: active prioritized backlog
 - `docs/retrieval-eval-runbook.md`: how to run the local labeled relevance harness and interpret its metrics
