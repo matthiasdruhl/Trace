@@ -1,15 +1,10 @@
-name: lambda-engine CI
+name: full CI
 
 on:
+  pull_request:
   push:
-    branches-ignore:
+    branches:
       - main
-    paths:
-      - 'lambda-engine/**'
-      - 'mcp-bridge/**'
-      - 'template.yaml'
-      - 'samconfig.toml'
-      - '.github/workflows/lambda-engine-ci.yml'
   workflow_dispatch:
 
 jobs:
@@ -32,6 +27,7 @@ jobs:
         run: npm run build
 
   rust:
+    name: Rust
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -54,8 +50,8 @@ jobs:
       - name: cargo test
         run: cargo test
 
-  # Validates SAM template + reproduces the ARM64/cargo-lambda artifact path (same as deploy).
   package:
+    name: SAM package
     needs: rust
     runs-on: ubuntu-latest
     steps:
@@ -91,7 +87,6 @@ jobs:
         if: steps.cache-cargo-lambda.outputs.cache-hit != 'true'
         run: curl -fsSL https://cargo-lambda.info/install.sh | sh
 
-      # Helps native/link dependencies when cross-compiling to aarch64 on the x86_64 runner.
       - name: Install aarch64 GNU linker (cross)
         run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
 
@@ -102,3 +97,25 @@ jobs:
         env:
           SAM_CLI_BETA_RUST_CARGO_LAMBDA: "1"
         run: sam build --beta-features
+
+  python-tests:
+    name: Scripts and tests (Python)
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            scripts/requirements.txt
+            scripts/constraints.txt
+
+      - name: Install Python dependencies
+        run: python -m pip install -r scripts/requirements.txt -c scripts/constraints.txt
+
+      - name: Run Python unit tests
+        run: python -m unittest discover -s tests -p "test_*.py"

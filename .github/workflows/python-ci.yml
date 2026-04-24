@@ -2,12 +2,8 @@ name: python CI
 
 on:
   push:
-    paths:
-      - 'scripts/**'
-      - 'fixtures/eval/**'
-      - 'tests/**'
-      - '.github/workflows/python-ci.yml'
-  pull_request:
+    branches-ignore:
+      - main
     paths:
       - 'scripts/**'
       - 'fixtures/eval/**'
