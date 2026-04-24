@@ -1,6 +1,6 @@
 # Deployed proof path (operator runbook)
 
-Last updated: 2026-04-22
+Last updated: 2026-04-23
 
 This runbook covers the deployed-proof workflow: prove the deployed Trace stack
 with direct `POST /search` and the MCP bridge tool `search_cold_archive`, and
@@ -21,6 +21,13 @@ Full migration sequence (preserve → label smoke → local eval build → uploa
 
 Until you cut over, a deployed stack may still point at **`uber_audit.lance/`**; the proof runner remains valid for **path** verification (`POST /search`, filters, MCP). Golden cases are **not** retrieval-quality benchmarks—see [features/deployed-proof-path.md](features/deployed-proof-path.md#golden-cases).
 
+Current state:
+
+- the smoke dataset exists at `s3://trace-vault/uber_audit.lance/`
+- the embedding-backed eval dataset is live at `s3://trace-vault/trace/eval/lance/`
+- `trace-smoke` and `trace-eval` are both deployed in `us-east-1`
+- the first deployed proof run passed against `trace-eval` and wrote artifacts at `artifacts/validation-runs/20260423T233528Z`
+
 ## Prerequisites
 
 - **AWS CLI** configured for the account and region where the stack runs (`aws sts get-caller-identity` works).
@@ -29,6 +36,7 @@ Until you cut over, a deployed stack may still point at **`uber_audit.lance/`**;
 - **Dataset** already uploaded to the bucket/prefix your stack uses (see `template.yaml` parameters `TraceDataBucketName` / `TraceLancePrefix`, or `TRACE_LANCE_S3_URI`).
 - **Embeddings** for real runs: `OPENAI_API_KEY` set (same model family as the deployed Lambda dimension, usually `text-embedding-3-small` and length 1536). For structural smoke only, use `--mock-embeddings`: HTTP uses a deterministic query vector, and the proof run sets the bridge env `USE_MOCK_EMBEDDINGS` for MCP. Rankings may differ between HTTP and MCP in that mode.
 - **HTTP auth**: if the stack uses an API key secret, set `TRACE_API_KEY` or `TRACE_MCP_API_KEY` to match the deployed secret.
+- Use `docs/DEPLOYMENT_RUNBOOK.md` for first-time stack creation or redeployment workflow; use this runbook for ongoing proof execution after stacks already exist.
 
 ## Resolve context
 

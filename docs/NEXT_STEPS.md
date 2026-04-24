@@ -1,10 +1,18 @@
 # Trace next steps
 
-Last updated: 2026-04-22
+Last updated: 2026-04-23
 
 This is the active prioritized backlog for the current implementation, not a sprint-era planning memo.
 
+Status terms used below:
+
+- `Implemented in code`: the repository already contains the core code path for this step
+- `Partially complete`: some enabling code exists, but the milestone still requires operator work, deployment work, validation runs, or additional artifacts
+- `Not implemented yet`: this is still backlog rather than a built capability
+
 ## 1. Align the ingestion and retrieval story
+
+Status: `Implemented in code`, with a small amount of ongoing documentation/operator follow-up
 
 The repository now has the core code path for this milestone:
 
@@ -40,9 +48,11 @@ Implemented in code:
 - dataset generation and embedding generation are now distinct phases in the seed pipeline
 - the seed path emits a manifest describing the generated dataset and embedding model
 
-This is the step after which embeddings become correct enough to support meaningful deployment validation.
+This milestone's core implementation is done. The remaining work here is mostly about keeping docs, audit notes, and operator practice honest about smoke versus eval usage.
 
 ## 2. Populate and validate the eval dataset path
+
+Status: `Complete`
 
 Once embeddings are generated correctly, the next step is to build the real eval dataset and make it available to deployment workflows.
 
@@ -60,9 +70,21 @@ Implemented in code:
 - `fixtures/eval/local_validation_cases.json` provides the default small curated sanity-case corpus
 - the validation runner writes `<table>.eval-validation.json` and records the latest validation summary in the seed manifest for auditability
 
+Completed in this workspace and AWS:
+
+- a fresh embedding-backed eval dataset was generated successfully under `.test-tmp/eval-seed/`
+- the local validation gate passed `7/7` curated cases
+- the seed manifest was stamped with the successful local validation summary
+- the eval dataset was uploaded to `s3://trace-vault/trace/eval/lance/`
+- the smoke stack `trace-smoke` was deployed in `us-east-1` against `uber_audit.lance`
+- the eval stack `trace-eval` was deployed in `us-east-1` against `trace/eval/lance`
+- the first deployed proof run passed against `trace-eval`
+
 This is the point after which deployed-path verification becomes worth doing, because the stack can finally point at a real embedding-backed corpus. The local validator still does not replace a separate deployed proof pass or a labeled relevance harness.
 
 ## 3. Prove the deployed path end to end
+
+Status: `Partially complete`, and now the active next milestone
 
 After steps 1 and 2 are complete, prove the live stack against the embedding-backed eval dataset.
 
@@ -80,7 +102,22 @@ Note:
 - this step is about proving the deployed path for features that already exist in code, including metadata filtering; it is not a backlog item to implement filtering itself
 - smoke-dataset path proof can still be useful for infrastructure debugging, but it should not be treated as the main acceptance gate once the eval dataset path exists
 
+Already implemented in code:
+
+- `scripts/prove_deployed_path.py` for direct HTTP and MCP proof runs
+- `scripts/proof_mcp_stdio.py` for subprocess MCP traversal
+- `fixtures/deployed/golden_cases.json` for proof-oriented cases
+- targeted proof-path tests in `tests/`
+
+Still not completed:
+
+- broader repeatable proof coverage beyond the first successful eval-stack run
+- representative committed stable fixtures under `fixtures/deployed/examples/`
+- any future shared/main-stack cutover beyond the current `trace-smoke` and `trace-eval` layout
+
 ## 4. Prove retrieval relevance, not just infrastructure health
+
+Status: `Not implemented yet`
 
 Deployment success and latency numbers are not enough on their own. The project also needs evidence that the semantic retrieval path actually returns better results than simpler baselines.
 
@@ -114,6 +151,8 @@ The goal is to be able to say, with evidence, that Trace is not just working cod
 
 ## 5. Add deployment and operations documentation
 
+Status: `Partially complete`
+
 Useful follow-up docs:
 
 - environment setup checklist for Lambda and MCP bridge
@@ -122,7 +161,15 @@ Useful follow-up docs:
 - operator notes for dataset refreshes, embedding regeneration, and cache-related debugging
 - extend the minimal deployed-proof runbook into a fuller operator handbook once the proof path is stable
 
+Current repo status:
+
+- `docs/deployed-proof-runbook.md` exists as a minimal proof-path operator runbook
+- `docs/S3_MIGRATION.md` exists for smoke-versus-eval migration guidance
+- `docs/DEPLOYMENT_RUNBOOK.md` now exists as the end-to-end deployment and rollback handbook
+
 ## 6. Harden deployed proof automation
+
+Status: `Partially complete`
 
 After the first end-to-end proof path is working, harden it so it is safer to rerun and easier to trust.
 
@@ -134,7 +181,15 @@ Useful follow-up:
 - add a lightweight smoke-check mode that can replay saved fixtures or run a reduced validation path when full deployment proof is unnecessary
 - decide whether any of this should run in CI, remain manual, or be a release-time verification step
 
+Current repo status:
+
+- the proof runner already has a `--dry-run` path
+- targeted unit coverage already exists for the proof runner and MCP stdio helper
+- the remaining work here is broader hardening, integration coverage, replay/smoke modes, and process decisions
+
 ## 7. Add benchmark evidence
+
+Status: `Not implemented yet`
 
 The code supports the architecture claims, but the repository would benefit from measured evidence:
 
@@ -146,6 +201,8 @@ The code supports the architecture claims, but the repository would benefit from
 - benchmark notes that distinguish structural smoke tests from semantic-quality evaluations
 
 ## 8. Build a stronger demo and judging surface
+
+Status: `Not implemented yet`
 
 After the deployed and evaluation paths are stable, package the project so its value is obvious quickly.
 
@@ -160,6 +217,8 @@ High-value additions:
 The main goal is to make the project easy to understand in under a minute without requiring the viewer to infer the value from architecture alone.
 
 ## 9. Decide on the next product surface
+
+Status: `Not implemented yet`
 
 After deployment proof is stable, choose one of:
 

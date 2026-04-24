@@ -1,6 +1,6 @@
 # Trace S3 migration guide
 
-Last updated: 2026-04-21
+Last updated: 2026-04-23
 
 ## Purpose
 
@@ -50,19 +50,20 @@ What is true right now:
 
 - the old random-vector smoke dataset exists at `s3://trace-vault/uber_audit.lance/`
 - that smoke dataset should be preserved and clearly labeled as smoke / infra data
-- the intended future eval prefix is `s3://trace-vault/trace/eval/lance/`
+- the embedding-backed eval dataset is now live at `s3://trace-vault/trace/eval/lance/`
+- a fresh embedding-backed local eval dataset has now been generated and validated successfully in the workspace
 
 What has **not** happened yet:
 
-- the new embedding-backed eval dataset has **not** yet been uploaded to `s3://trace-vault/trace/eval/lance/`
-- the SAM stack / Lambda environment has **not** yet been repointed from `uber_audit.lance` to the new eval prefix
-- a real end-to-end validation run against an embedding-backed S3 dataset has **not** yet been completed
+- representative committed stable fixtures have not yet been generated from the deployed proof path
+- a broader evaluation harness and relevance benchmark layer still does not exist
 - semantic-quality claims should therefore still be considered premature
 
 Practical consequence:
 
 - `s3://trace-vault/uber_audit.lance/` remains the current smoke / infra dataset
-- `s3://trace-vault/trace/eval/lance/` should still be treated as the **planned target**, not an active validated dataset, until the remaining steps below are completed
+- `s3://trace-vault/trace/eval/lance/` is now the active embedding-backed eval dataset
+- the current deployed layout uses separate `trace-smoke` and `trace-eval` stacks in `us-east-1`
 
 ## What the current random-vector S3 dataset is still useful for
 
@@ -193,9 +194,10 @@ python scripts/validate_eval_dataset.py --output-dir lance_seed --table-name ube
 
 Current status:
 
-- this phase is still pending
-- `scripts/seed.py` now supports real OpenAI-backed embeddings for the local eval build
-- `scripts/validate_eval_dataset.py` now provides a repeatable local pre-upload sanity-check step for dataset shape, embedding-model consistency, restricted filter syntax, and a few small curated retrieval expectations
+- this phase is now complete locally
+- `scripts/seed.py` produced a fresh embedding-backed dataset under `.test-tmp/eval-seed/`
+- `scripts/validate_eval_dataset.py` passed all `7/7` local curated validation cases and stamped the seed manifest
+- the remaining work in this phase is publication to S3, not local dataset generation
 
 ### Phase 3: Upload to a new S3 prefix
 
@@ -217,8 +219,8 @@ If the script does not yet support a clean distinction between smoke and eval pr
 
 Current status:
 
-- this upload has not happened yet for `s3://trace-vault/trace/eval/lance/`
-- do not treat that prefix as live until a corrected embedding-backed dataset is actually uploaded there
+- this upload is complete
+- the eval prefix now contains the validated embedding-backed dataset and is safe to use for the eval stack
 
 ### Phase 4: Validate the new prefix without cutting over production
 
@@ -239,8 +241,9 @@ This is the point where you should also start building:
 
 Current status:
 
-- this remote validation has not happened yet against a real embedding-backed S3 dataset
-- any current deployed proof work should still be interpreted as smoke / infra validation if it points at `s3://trace-vault/uber_audit.lance/`
+- this validation has now happened successfully against the real embedding-backed eval dataset
+- the first successful proof run used stack `trace-eval` in `us-east-1`
+- smoke-dataset proof remains useful for infra debugging, but eval proof is now the primary semantic validation path
 
 ### Phase 5: Cut over demo or primary evaluation environments
 
@@ -256,8 +259,9 @@ At this stage, the old smoke dataset should remain available for rollback and de
 
 Current status:
 
-- this cutover has not happened yet
-- the live stack should remain on the current smoke dataset until the eval prefix is populated and validated
+- `trace-eval` is now live against the eval prefix
+- `trace-smoke` remains live against the smoke prefix for rollback and infrastructure debugging
+- there is no broader shared/main stack yet beyond this two-stack layout
 
 ### Phase 6: Keep rollback simple
 

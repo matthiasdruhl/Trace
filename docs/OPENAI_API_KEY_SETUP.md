@@ -1,19 +1,20 @@
 # OpenAI API Key Setup
 
-Last updated: 2026-04-22
+Last updated: 2026-04-23
 
 ## Current status
 
-This Trace workspace does **not** currently have an OpenAI API key configured for
-the embedding-backed seed pipeline.
+This Trace workspace now has a working OpenAI API key available for the local
+embedding-backed seed pipeline.
 
-Without `OPENAI_API_KEY`, the default seed command will fail:
+If `OPENAI_API_KEY` is missing in a fresh shell, the default seed command will fail:
 
 ```powershell
 python scripts/seed.py --force
 ```
 
-That is expected until the key is added.
+That is expected until the key is added for the current shell or persisted at
+the user level.
 
 ## What the key is needed for
 
@@ -103,6 +104,8 @@ python scripts/seed.py --force
 - `scripts/seed.py` reads `OPENAI_API_KEY` directly from the environment.
 - No `.env` file or repo config file is required for the current seed flow.
 - Do not commit your API key into the repository, docs, or scripts.
+- The current workspace has already completed one successful embedding-backed
+  local eval dataset build and local validation run.
 
 ## Quick fallback
 
