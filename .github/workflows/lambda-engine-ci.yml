@@ -2,12 +2,8 @@ name: lambda-engine CI
 
 on:
   push:
-    paths:
-      - 'lambda-engine/**'
-      - 'mcp-bridge/**'
-      - 'template.yaml'
-      - 'samconfig.toml'
-      - '.github/workflows/lambda-engine-ci.yml'
+    branches:
+      - main
   pull_request:
     paths:
       - 'lambda-engine/**'
