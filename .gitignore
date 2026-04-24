@@ -4,6 +4,11 @@
 /artifacts/
 /.test-tmp/
 
+# Local SAM/deployment output (machine-specific; never commit)
+/.aws-sam/
+/samconfig.toml
+/samconfig.*.toml
+
 # Rust
 lambda-engine/target/
 **/target/
@@ -25,4 +30,5 @@ Thumbs.db
 .vscode/
 
 # Env secrets.env
+.env
 .env.*

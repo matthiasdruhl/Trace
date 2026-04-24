@@ -72,6 +72,15 @@ Generated outputs under the selected `output_dir` such as `lance_seed/`,
 `_smoke_lance_seed/`, `<table>.source.parquet`, and
 `<table>.seed-manifest.json` should remain untracked.
 
+Current local status:
+
+- a fresh embedding-backed local eval dataset has been generated under `.test-tmp/eval-seed/`
+- the corresponding local validation run passed `7/7` curated cases
+- the eval dataset is now uploaded to `s3://trace-vault/trace/eval/lance/`
+- the smoke stack `trace-smoke` is deployed in `us-east-1`
+- the eval stack `trace-eval` is deployed in `us-east-1`
+- the first deployed proof run passed against the eval stack
+
 ### 2. Validate the Rust Lambda
 
 ```bash
@@ -129,9 +138,10 @@ Current status:
 
 - the proof runner and tests are implemented
 - the current smoke dataset is `s3://trace-vault/uber_audit.lance/`
-- the future eval target is `s3://trace-vault/trace/eval/lance/`
-- a new embedding-backed eval dataset has not been uploaded yet
-- SAM/Lambda has not been repointed to the eval prefix yet
+- the eval dataset is live at `s3://trace-vault/trace/eval/lance/`
+- `trace-smoke` search URL: `https://u73d8vk2yl.execute-api.us-east-1.amazonaws.com/search`
+- `trace-eval` search URL: `https://kp2kjz4fkg.execute-api.us-east-1.amazonaws.com/search`
+- the first eval proof run passed and wrote artifacts under `artifacts/validation-runs/20260423T233528Z`
 - representative stable fixtures have not been committed yet
 
 ## Documentation map
@@ -139,6 +149,7 @@ Current status:
 - `docs/ARCHITECTURE.md`: component-level system overview
 - `docs/API_CONTRACT.md`: request, response, auth, and filter grammar reference
 - `docs/DATA_SPEC.md`: synthetic dataset schema and seed script behavior
+- `docs/DEPLOYMENT_RUNBOOK.md`: end-to-end deployment, upload, proof, and rollback checklist
 - `docs/deployed-proof-runbook.md`: how to run the deployed proof path and interpret artifacts
 - `docs/PROJECT_STATE.md`: current implementation snapshot
 - `docs/NEXT_STEPS.md`: active prioritized backlog
