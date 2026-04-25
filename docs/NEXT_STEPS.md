@@ -68,7 +68,7 @@ These are the best scoring opportunities now.
 
 ## 1. Clarify the product story everywhere
 
-Status: `Not implemented yet`
+Status: `Complete`
 
 Why this matters:
 
@@ -88,6 +88,7 @@ Definition of done:
 - a new reader can understand who Trace is for and why it matters in under one minute
 - the README, demo, pitch, and top-level docs all tell the same story
 - Trace no longer reads like generic search infrastructure
+- Trace reads like an investigation workflow, not just a retrieval engine
 
 Recommended output:
 
@@ -109,7 +110,8 @@ What to do:
 - build a small user-facing UI or a very polished walkthrough surface
 - expose a single obvious search flow
 - add visible filter controls or safe structured inputs
-- show result metadata, provenance, and optionally "why this matched"
+- show result metadata, provenance, and a visible explanation or handoff layer
+- make the baseline AI-native moment mandatory in the main demo flow: interpreted filters, "why this matched," or a short evidence handoff
 - handle empty states and invalid inputs gracefully
 
 Definition of done:
@@ -117,10 +119,13 @@ Definition of done:
 - there is one primary demo path that is easy to show live
 - a viewer can see semantic retrieval plus filtering in action without needing implementation context
 - the product feels intentional rather than stitched together
+- the product visibly helps someone move from query to defensible action
+- the main demo includes at least one reliable explanation or handoff moment that proves Trace is more than search plus filters
 
 Recommended output:
 
 - lightweight web UI or equivalent polished demo surface
+- baseline explanation or evidence-handoff experience integrated into the main flow
 - stable screenshots or short recordings for fallback use
 
 ## 3. Create a side-by-side proof of value
@@ -137,6 +142,7 @@ What to do:
 - create one example where keyword search fails but Trace succeeds
 - create one example where semantic-only retrieval is too broad but semantic plus metadata filtering succeeds
 - package both into a comparison artifact that can be reused in the README, demo, and pitch
+- include one brief explanation or handoff moment that shows the AI layer is part of the product, not hidden plumbing
 
 Definition of done:
 
@@ -233,8 +239,8 @@ Status: `Not implemented yet`
 
 Why this matters:
 
-- this is a good opportunity to raise creativity and polish without changing the core architecture
-- it helps Trace feel like a product instead of a backend
+- after the baseline explanation or handoff layer exists in the core demo, this is the chance to make that capability more memorable
+- it helps raise creativity and polish without changing the core architecture
 
 Strong options:
 
@@ -245,11 +251,12 @@ Strong options:
 
 Decision rule:
 
-- choose one, do it well, and make sure it supports the main demo rather than distracting from it
+- assume the core demo already contains a baseline explanation or handoff moment from Step 2
+- choose one stronger or more memorable version, do it well, and make sure it supports the main demo rather than distracting from it
 
 Definition of done:
 
-- the demo has one memorable feature beyond "search returns rows"
+- the demo has one memorable trust or explainability feature beyond the baseline explanation layer
 - the feature improves trust, understanding, or workflow usefulness
 
 ## 8. Prepare the finalist pitch path now
