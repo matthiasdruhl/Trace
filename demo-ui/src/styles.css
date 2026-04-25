@@ -1,0 +1,488 @@
+:root {
+  font-family: "Aptos", "Segoe UI Variable", "Segoe UI", "Helvetica Neue", sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #1f1712;
+  background:
+    radial-gradient(circle at top left, rgba(197, 128, 76, 0.16), transparent 32%),
+    linear-gradient(180deg, #f5ecd8 0%, #efe0c4 45%, #ead7b7 100%);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  --paper: rgba(255, 251, 243, 0.86);
+  --paper-strong: rgba(255, 250, 240, 0.95);
+  --ink: #1f1712;
+  --ink-muted: #5a483c;
+  --accent: #b15c28;
+  --accent-strong: #7f3412;
+  --accent-soft: rgba(177, 92, 40, 0.14);
+  --line: rgba(76, 52, 37, 0.18);
+  --shadow: 0 24px 60px rgba(61, 35, 16, 0.14);
+  --radius-xl: 28px;
+  --radius-lg: 20px;
+  --radius-md: 14px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  color: var(--ink);
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.app-shell {
+  position: relative;
+  overflow: hidden;
+  min-height: 100vh;
+}
+
+.background-radial {
+  pointer-events: none;
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(40px);
+  opacity: 0.8;
+}
+
+.background-radial-a {
+  width: 26rem;
+  height: 26rem;
+  top: -8rem;
+  right: -6rem;
+  background: rgba(185, 115, 54, 0.18);
+}
+
+.background-radial-b {
+  width: 24rem;
+  height: 24rem;
+  left: -8rem;
+  bottom: 10rem;
+  background: rgba(111, 60, 36, 0.12);
+}
+
+.app-panel {
+  position: relative;
+  z-index: 1;
+  width: min(1180px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 2rem 0 3rem;
+}
+
+.hero,
+.composer-card,
+.cases-section,
+.results-section {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+}
+
+.hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 2rem;
+  padding: 2rem;
+  border-radius: var(--radius-xl);
+}
+
+.hero-copy {
+  max-width: 48rem;
+}
+
+.eyebrow {
+  margin: 0 0 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.74rem;
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.hero h1,
+.section-heading h2 {
+  margin: 0;
+  font-family:
+    "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "URW Palladio L",
+    serif;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+
+.hero h1 {
+  font-size: clamp(2.4rem, 4vw, 4.5rem);
+  max-width: 13ch;
+}
+
+.hero-lede {
+  margin: 1rem 0 0;
+  max-width: 42rem;
+  color: var(--ink-muted);
+  font-size: 1.08rem;
+}
+
+.health-pill {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  border-radius: 999px;
+  padding: 0.8rem 1rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.health-pill-ready {
+  background: rgba(46, 104, 59, 0.14);
+  color: #1d5b30;
+}
+
+.health-pill-down {
+  background: rgba(142, 57, 36, 0.12);
+  color: #7f3412;
+}
+
+.health-indicator {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.composer-card,
+.cases-section,
+.results-section {
+  margin-top: 1.5rem;
+  border-radius: var(--radius-xl);
+  padding: 1.5rem;
+}
+
+.search-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.query-input,
+.text-input {
+  width: 100%;
+  border: 1px solid rgba(81, 58, 41, 0.24);
+  background: var(--paper-strong);
+  color: var(--ink);
+  border-radius: var(--radius-md);
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
+}
+
+.query-input {
+  resize: vertical;
+  min-height: 8rem;
+  padding: 1rem 1.1rem;
+}
+
+.text-input {
+  min-height: 3rem;
+  padding: 0.75rem 0.9rem;
+}
+
+.query-input:focus,
+.text-input:focus,
+.case-card:focus-visible,
+.primary-button:focus-visible {
+  outline: none;
+  border-color: rgba(177, 92, 40, 0.7);
+  box-shadow: 0 0 0 4px rgba(177, 92, 40, 0.16);
+}
+
+.filter-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.field-group {
+  min-width: 0;
+}
+
+.search-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.primary-button {
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #a14518 0%, #c46d37 100%);
+  color: #fffaf6;
+  padding: 0.95rem 1.35rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow: 0 12px 24px rgba(161, 69, 24, 0.24);
+}
+
+.primary-button:disabled {
+  cursor: progress;
+  opacity: 0.75;
+}
+
+.support-copy {
+  margin: 0;
+  color: var(--ink-muted);
+  max-width: 40rem;
+}
+
+.section-heading {
+  margin-bottom: 1rem;
+}
+
+.section-heading h2 {
+  font-size: clamp(1.7rem, 2.4vw, 2.5rem);
+}
+
+.case-grid,
+.results-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.case-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.case-card {
+  appearance: none;
+  border: 1px solid rgba(97, 67, 45, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 250, 241, 0.92), rgba(245, 235, 217, 0.88));
+  border-radius: var(--radius-lg);
+  padding: 1.15rem;
+  display: grid;
+  gap: 0.7rem;
+  text-align: left;
+  min-height: 14rem;
+}
+
+.case-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(177, 92, 40, 0.38);
+}
+
+.case-title {
+  font-family:
+    "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "URW Palladio L",
+    serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.case-description {
+  color: var(--ink-muted);
+}
+
+.case-query,
+.status-bar,
+.result-id,
+.timestamp,
+.score-row {
+  font-family:
+    "Cascadia Code", "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+}
+
+.case-query {
+  font-size: 0.92rem;
+  color: var(--accent-strong);
+}
+
+.status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem 1.2rem;
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius-md);
+  background: rgba(93, 69, 48, 0.08);
+  color: var(--ink-muted);
+  margin-bottom: 1rem;
+  font-size: 0.92rem;
+}
+
+.notice,
+.empty-state {
+  border-radius: var(--radius-lg);
+  padding: 1.15rem 1.2rem;
+  border: 1px solid transparent;
+}
+
+.notice {
+  margin-bottom: 1rem;
+}
+
+.notice-warning {
+  background: rgba(190, 128, 33, 0.14);
+  border-color: rgba(190, 128, 33, 0.22);
+}
+
+.notice-danger {
+  background: rgba(142, 57, 36, 0.12);
+  border-color: rgba(142, 57, 36, 0.18);
+}
+
+.empty-state {
+  background: rgba(255, 248, 236, 0.84);
+  border: 1px dashed rgba(94, 70, 47, 0.22);
+}
+
+.empty-title {
+  margin-top: 0;
+  margin-bottom: 0.45rem;
+  font-family:
+    "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "URW Palladio L",
+    serif;
+  font-size: 1.35rem;
+}
+
+.results-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.result-card {
+  border-radius: var(--radius-lg);
+  padding: 1.15rem;
+  background: var(--paper-strong);
+  border: 1px solid rgba(97, 67, 45, 0.18);
+  display: grid;
+  gap: 1rem;
+}
+
+.result-meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.result-id {
+  font-size: 0.95rem;
+  color: var(--ink-muted);
+}
+
+.badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.badge {
+  border-radius: 999px;
+  padding: 0.3rem 0.65rem;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
+.timestamp {
+  margin: 0;
+  color: var(--ink-muted);
+}
+
+.block-label {
+  margin: 0 0 0.35rem;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.excerpt-block p:last-child,
+.explanation-block p:last-child {
+  margin: 0;
+}
+
+.score-row {
+  display: flex;
+  justify-content: space-between;
+  color: var(--ink-muted);
+  gap: 1rem;
+  border-top: 1px solid rgba(97, 67, 45, 0.14);
+  padding-top: 0.85rem;
+}
+
+@media (max-width: 980px) {
+  .hero {
+    flex-direction: column;
+  }
+
+  .filter-grid,
+  .case-grid,
+  .results-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-panel {
+    width: min(100% - 1rem, 100%);
+    padding-top: 1rem;
+    padding-bottom: 2rem;
+  }
+
+  .hero,
+  .composer-card,
+  .cases-section,
+  .results-section {
+    padding: 1rem;
+    border-radius: 20px;
+  }
+
+  .hero h1 {
+    font-size: 2.3rem;
+  }
+
+  .search-actions {
+    align-items: stretch;
+  }
+
+  .primary-button {
+    width: 100%;
+  }
+
+  .status-bar {
+    flex-direction: column;
+  }
+
+  .result-meta-row {
+    flex-direction: column;
+  }
+}
+

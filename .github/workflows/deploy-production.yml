@@ -1,0 +1,268 @@
+name: deploy production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      stack_name:
+        description: Optional CloudFormation stack name override
+        required: false
+      aws_region:
+        description: Optional AWS region override
+        required: false
+      trace_data_bucket_name:
+        description: Optional TraceDataBucketName parameter override
+        required: false
+      trace_lance_prefix:
+        description: Optional TraceLancePrefix parameter override
+        required: false
+      trace_api_key_secret_ref:
+        description: Optional TraceApiKeySecretRef parameter override
+        required: false
+      trace_api_key_secret_json_key:
+        description: Optional TraceApiKeySecretJsonKey parameter override
+        required: false
+      openai_api_key_secret_ref:
+        description: Optional OpenAiApiKeySecretRef parameter override
+        required: false
+      openai_api_key_secret_json_key:
+        description: Optional OpenAiApiKeySecretJsonKey parameter override
+        required: false
+      openai_embedding_model:
+        description: Optional OpenAiEmbeddingModel parameter override
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy Stack And Publish Frontend
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      AWS_REGION: ${{ inputs.aws_region || vars.AWS_REGION || 'us-east-1' }}
+      AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+      SAM_STACK_NAME: ${{ inputs.stack_name || vars.SAM_STACK_NAME }}
+      TRACE_DATA_BUCKET_NAME: ${{ inputs.trace_data_bucket_name || vars.TRACE_DATA_BUCKET_NAME || '' }}
+      TRACE_LANCE_PREFIX: ${{ inputs.trace_lance_prefix || vars.TRACE_LANCE_PREFIX || '' }}
+      TRACE_API_KEY_SECRET_REF: ${{ inputs.trace_api_key_secret_ref || vars.TRACE_API_KEY_SECRET_REF || '' }}
+      TRACE_API_KEY_SECRET_JSON_KEY: ${{ inputs.trace_api_key_secret_json_key || vars.TRACE_API_KEY_SECRET_JSON_KEY || '' }}
+      OPENAI_API_KEY_SECRET_REF: ${{ inputs.openai_api_key_secret_ref || vars.OPENAI_API_KEY_SECRET_REF || '' }}
+      OPENAI_API_KEY_SECRET_JSON_KEY: ${{ inputs.openai_api_key_secret_json_key || vars.OPENAI_API_KEY_SECRET_JSON_KEY || '' }}
+      OPENAI_EMBEDDING_MODEL: ${{ inputs.openai_embedding_model || vars.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          missing=()
+
+          if [[ -z "${AWS_ROLE_ARN}" ]]; then
+            missing+=("AWS_ROLE_ARN repository variable")
+          fi
+
+          if [[ -z "${SAM_STACK_NAME}" ]]; then
+            missing+=("SAM_STACK_NAME repository variable or workflow_dispatch input stack_name")
+          fi
+
+          if [[ -z "${OPENAI_API_KEY_SECRET_REF}" ]]; then
+            missing+=("OPENAI_API_KEY_SECRET_REF repository variable or workflow_dispatch input openai_api_key_secret_ref")
+          fi
+
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing required deployment configuration:\n' >&2
+            printf ' - %s\n' "${missing[@]}" >&2
+            exit 1
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install protobuf compiler
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            mcp-bridge/package-lock.json
+            demo-ui/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-gnu
+
+      - name: Rust cache (lambda-engine)
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: lambda-engine
+
+      - name: Install SAM CLI
+        uses: aws-actions/setup-sam@v2
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
+
+      - name: Cache cargo-lambda binary
+        id: cache-cargo-lambda
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-lambda
+          key: cargo-lambda-bin-${{ runner.os }}-x86_64-v1
+
+      - name: Install cargo-lambda
+        if: steps.cache-cargo-lambda.outputs.cache-hit != 'true'
+        run: curl -fsSL https://cargo-lambda.info/install.sh | sh
+
+      - name: Install aarch64 GNU linker (cross)
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Install frontend dependencies
+        working-directory: demo-ui
+        run: npm ci
+
+      - name: Install esbuild for SAM NodejsNpmEsbuildBuilder
+        run: npm install --global esbuild
+
+      - name: SAM validate (--lint)
+        run: sam validate --lint
+
+      - name: Remove stale local build outputs
+        run: rm -rf .aws-sam mcp-bridge/dist
+
+      - name: SAM build
+        env:
+          SAM_CLI_BETA_RUST_CARGO_LAMBDA: "1"
+        run: sam build --beta-features --no-cached
+
+      - name: Deploy stack
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          parameter_overrides=()
+
+          add_override() {
+            local key="$1"
+            local value="$2"
+            if [[ -n "${value}" ]]; then
+              parameter_overrides+=("${key}=${value}")
+            fi
+          }
+
+          add_override "TraceDataBucketName" "${TRACE_DATA_BUCKET_NAME}"
+          add_override "TraceLancePrefix" "${TRACE_LANCE_PREFIX}"
+          add_override "TraceApiKeySecretRef" "${TRACE_API_KEY_SECRET_REF}"
+          add_override "TraceApiKeySecretJsonKey" "${TRACE_API_KEY_SECRET_JSON_KEY}"
+          add_override "OpenAiApiKeySecretRef" "${OPENAI_API_KEY_SECRET_REF}"
+          add_override "OpenAiApiKeySecretJsonKey" "${OPENAI_API_KEY_SECRET_JSON_KEY}"
+          add_override "OpenAiEmbeddingModel" "${OPENAI_EMBEDDING_MODEL}"
+
+          deploy_cmd=(
+            sam deploy
+            --stack-name "${SAM_STACK_NAME}"
+            --region "${AWS_REGION}"
+            --capabilities CAPABILITY_IAM
+            --resolve-s3
+            --no-fail-on-empty-changeset
+          )
+
+          if (( ${#parameter_overrides[@]} > 0 )); then
+            deploy_cmd+=(--parameter-overrides "${parameter_overrides[@]}")
+          fi
+
+          "${deploy_cmd[@]}"
+
+      - name: Read stack outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          output_value() {
+            local key="$1"
+            aws cloudformation describe-stacks \
+              --stack-name "${SAM_STACK_NAME}" \
+              --region "${AWS_REGION}" \
+              --query "Stacks[0].Outputs[?OutputKey=='${key}'].OutputValue" \
+              --output text
+          }
+
+          app_url="$(output_value AppUrl)"
+          app_api_base_url="$(output_value AppApiBaseUrl)"
+          frontend_bucket_name="$(output_value FrontendBucketName)"
+          distribution_id="$(output_value TraceAppDistributionId)"
+
+          for pair in \
+            "AppUrl:${app_url}" \
+            "AppApiBaseUrl:${app_api_base_url}" \
+            "FrontendBucketName:${frontend_bucket_name}" \
+            "TraceAppDistributionId:${distribution_id}"; do
+            key="${pair%%:*}"
+            value="${pair#*:}"
+            if [[ -z "${value}" || "${value}" == "None" ]]; then
+              echo "Missing required stack output: ${key}" >&2
+              exit 1
+            fi
+          done
+
+          {
+            echo "APP_URL=${app_url}"
+            echo "APP_API_BASE_URL=${app_api_base_url}"
+            echo "FRONTEND_BUCKET_NAME=${frontend_bucket_name}"
+            echo "TRACE_APP_DISTRIBUTION_ID=${distribution_id}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Build frontend against deployed app API origin
+        working-directory: demo-ui
+        run: VITE_TRACE_API_BASE_URL="${APP_API_BASE_URL}" npm run build
+
+      - name: Publish frontend assets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          aws s3 sync demo-ui/dist "s3://${FRONTEND_BUCKET_NAME}/" \
+            --delete \
+            --exclude "index.html" \
+            --cache-control "public,max-age=31536000,immutable"
+
+          aws s3 cp demo-ui/dist/index.html "s3://${FRONTEND_BUCKET_NAME}/index.html" \
+            --cache-control "no-cache,no-store,must-revalidate" \
+            --content-type "text/html; charset=utf-8"
+
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${TRACE_APP_DISTRIBUTION_ID}" \
+            --paths "/*"
+
+      - name: Write deployment summary
+        shell: bash
+        run: |
+          {
+            echo "## Production Deploy"
+            echo
+            echo "- Stack: \`${SAM_STACK_NAME}\`"
+            echo "- Region: \`${AWS_REGION}\`"
+            echo "- App URL: ${APP_URL}"
+            echo "- App API base URL: ${APP_API_BASE_URL}"
+            echo "- Frontend bucket: \`${FRONTEND_BUCKET_NAME}\`"
+            echo "- CloudFront distribution: \`${TRACE_APP_DISTRIBUTION_ID}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"

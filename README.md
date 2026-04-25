@@ -49,8 +49,9 @@ an explainable handoff instead of a generic search result page.
 
 The current repository contains:
 
+- a production web app in `demo-ui/`
+- a Node app API plus MCP bridge runtime in `mcp-bridge/`
 - a Rust Lambda search engine in `lambda-engine/`
-- a Node/TypeScript MCP bridge in `mcp-bridge/`
 - a Python seeding pipeline in `scripts/`
 - a deployed proof runner and MCP stdio helper in `scripts/`
 - an AWS SAM template in `template.yaml`
@@ -73,13 +74,115 @@ Trace is not generic search infrastructure. It is an investigation workflow
 that balances semantic flexibility with structured control so operators can
 reach a defensible decision faster.
 
+## Production app architecture
+
+The production app adds a browser-facing investigation surface on top of the
+existing search stack:
+
+- `demo-ui/` builds the static SPA that investigators use.
+- `mcp-bridge/` now serves two roles: the existing stdio MCP bridge and the
+  public app API Lambda runtime.
+- The public app API is exposed under `/api/*` and owns embedding generation,
+  typed filter handling, and result shaping for the frontend.
+- The Rust Lambda in `lambda-engine/` remains the search engine behind
+  `POST /search`.
+
+The browser should talk only to the app API. OpenAI credentials and any Trace
+search API key stay server-side in the Node app API.
+
 ## Repository layout
 
+- `demo-ui/`: static React/Vite frontend for the production investigation app
 - `lambda-engine/`: Rust Lambda runtime, request validation, filtering, and Lance search path
-- `mcp-bridge/`: MCP server exposing `search_cold_archive`
+- `mcp-bridge/`: shared Node layer for the stdio MCP bridge and the app API Lambda
 - `scripts/`: synthetic dataset generation and optional S3 upload/promotion flow
 - `docs/`: active reference docs plus a `deprecated/` archive for superseded planning material
 - `template.yaml`: SAM deployment template for the Lambda and HTTP API
+
+## Run the production app locally
+
+The currently supported local browser workflow is:
+
+1. Use a deployed Trace app base URL for the app API origin. Read
+   `AppApiBaseUrl` from the deployed stack outputs and set
+   `VITE_TRACE_API_BASE_URL` to that origin only, without an added `/api`
+   suffix. The frontend app appends `/api/search`, `/api/cases`, and
+   `/api/health` itself.
+
+2. Run the frontend locally with Vite:
+
+```bash
+set VITE_TRACE_API_BASE_URL=https://<cloudfront-domain>
+cd demo-ui
+npm install
+npm run dev
+```
+
+3. For app API changes, validate the Node code and the deploy packaging path
+   separately. `sam build` now packages the app API directly from
+   `mcp-bridge/src/app-api.ts`, but AWS SAM's `NodejsNpmEsbuildBuilder`
+   requires `esbuild` on the host machine first:
+
+```bash
+npm install --global esbuild
+cd mcp-bridge
+npm install
+npm test
+cd ..
+sam build --beta-features
+```
+
+`sam local start-api` is not the supported `/api/*` workflow for this branch.
+The public app API routes are created with explicit API Gateway v2 integration
+resources, and the deployed `/api/*` shape also depends on the CloudFront
+distribution in `template.yaml`. Use a deployed stack for browser-level `/api/*`
+testing, and use `npm test` plus `sam build --beta-features` to validate app
+API code changes locally.
+
+## Deploy the production app
+
+`template.yaml` provisions the frontend bucket, CloudFront distribution, Rust
+search Lambda, and Node app API, but the SPA publish step is still explicit:
+build `demo-ui/`, sync `demo-ui/dist` to the provisioned S3 bucket, and then
+invalidate CloudFront so the new assets go live.
+
+1. Build and deploy the stack. Install `esbuild` once on the deployment
+   machine, then run SAM. `sam build --beta-features` packages both the Rust
+   Lambda and the Node app API from source, so a pre-existing
+   `mcp-bridge/dist/` directory is not required:
+
+```bash
+npm install --global esbuild
+sam build --beta-features
+sam deploy --stack-name <stack-name> --region <region> --capabilities CAPABILITY_IAM --resolve-s3
+```
+
+2. Read these stack outputs:
+
+- `AppUrl`: investigator-facing CloudFront URL
+- `AppApiBaseUrl`: value to use for `VITE_TRACE_API_BASE_URL`
+- `FrontendBucketName` or `FrontendPublishS3Uri`: publish target for `demo-ui/dist`
+- `TraceAppDistributionId`: CloudFront distribution ID for invalidation
+
+3. Build the SPA against the deployed CloudFront origin. Do not append `/api`
+   to `VITE_TRACE_API_BASE_URL`:
+
+```bash
+set VITE_TRACE_API_BASE_URL=https://<cloudfront-domain>
+cd demo-ui
+npm install
+npm run build
+```
+
+4. Publish the built SPA and invalidate CloudFront:
+
+```bash
+aws s3 sync demo-ui/dist s3://<frontend-bucket-name>/ --delete
+aws cloudfront create-invalidation --distribution-id <distribution-id> --paths "/*"
+```
+
+If you skip the sync and invalidation step, the deployed stack has working
+infra but no updated frontend artifact.
 
 ## Quick start
 

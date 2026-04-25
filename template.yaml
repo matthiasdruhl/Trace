@@ -34,14 +34,34 @@ Parameters:
     Description: >
       If the secret stores JSON, set this to the field name (e.g. traceApiKey). Leave empty to inject the entire
       SecretString (plaintext secret or single string body).
+  OpenAiApiKeySecretRef:
+    Type: String
+    Default: ''
+    Description: >
+      Secrets Manager secret name, partial name, or full ARN for the app API's OPENAI_API_KEY.
+      Leave empty only for local-only or mock deployments.
+  OpenAiApiKeySecretJsonKey:
+    Type: String
+    Default: ''
+    Description: >
+      If the OpenAI secret stores JSON, set this to the field name (for example openaiApiKey).
+      Leave empty to inject the entire SecretString value.
+  OpenAiEmbeddingModel:
+    Type: String
+    Default: text-embedding-3-small
+    Description: Embedding model used by the Node app API and MCP bridge shared search path.
 
 Conditions:
   HasTraceApiKeySecret: !Not [!Equals [!Ref TraceApiKeySecretRef, '']]
   TraceApiKeySecretHasJsonKey: !Not [!Equals [!Ref TraceApiKeySecretJsonKey, '']]
+  HasOpenAiApiKeySecret: !Not [!Equals [!Ref OpenAiApiKeySecretRef, '']]
+  OpenAiApiKeySecretHasJsonKey: !Not [!Equals [!Ref OpenAiApiKeySecretJsonKey, '']]
   # Empty refs split to a first segment of '', so this remains false in IAM-only mode without
   # requiring an Fn::If inside Fn::Equals (which cfn-lint rejects here).
   TraceApiKeySecretIsArn:
     !Equals [!Select [0, !Split [':', !Ref TraceApiKeySecretRef]], 'arn']
+  OpenAiApiKeySecretIsArn:
+    !Equals [!Select [0, !Split [':', !Ref OpenAiApiKeySecretRef]], 'arn']
 
 Globals:
   Function:
@@ -50,18 +70,22 @@ Globals:
     Architectures:
       - arm64
     Tracing: Active
-  HttpApi:
-    CorsConfiguration:
-      AllowMethods:
-        - POST
-        - OPTIONS
-      AllowHeaders:
-        - Content-Type
-        - X-TRACE-API-KEY
-      AllowOrigins:
-        - '*'
 
 Resources:
+  TraceHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+          - X-TRACE-API-KEY
+        AllowOrigins:
+          - '*'
+
   TraceSearchFunction:
     Type: AWS::Serverless::Function
     Metadata:
@@ -130,16 +154,286 @@ Resources:
         SearchPost:
           Type: HttpApi
           Properties:
+            ApiId: !Ref TraceHttpApi
             Path: /search
             Method: POST
+
+  TraceAppApiFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints:
+          - src/app-api.ts
+        Format: esm
+        Minify: false
+        OutExtension:
+          - .js=.mjs
+        Sourcemap: true
+        Target: es2022
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-trace-app-api'
+      CodeUri: mcp-bridge
+      Handler: app-api.handler
+      Runtime: nodejs22.x
+      Environment:
+        Variables:
+          NODE_ENV: production
+          NODE_OPTIONS: --enable-source-maps
+          OPENAI_API_KEY: !If
+            - HasOpenAiApiKeySecret
+            - !If
+              - OpenAiApiKeySecretHasJsonKey
+              - !Sub
+                  - '{{{{resolve:secretsmanager:${SecretRef}:SecretString:${JsonKey}}}}}'
+                  - SecretRef: !Ref OpenAiApiKeySecretRef
+                    JsonKey: !Ref OpenAiApiKeySecretJsonKey
+              - !Sub
+                  - '{{{{resolve:secretsmanager:${SecretRef}:SecretString}}}}'
+                  - SecretRef: !Ref OpenAiApiKeySecretRef
+            - ''
+          OPENAI_EMBEDDING_MODEL: !Ref OpenAiEmbeddingModel
+          TRACE_API_KEY: !If
+            - HasTraceApiKeySecret
+            - !If
+              - TraceApiKeySecretHasJsonKey
+              - !Sub
+                  - '{{{{resolve:secretsmanager:${SecretRef}:SecretString:${JsonKey}}}}}'
+                  - SecretRef: !Ref TraceApiKeySecretRef
+                    JsonKey: !Ref TraceApiKeySecretJsonKey
+              - !Sub
+                  - '{{{{resolve:secretsmanager:${SecretRef}:SecretString}}}}'
+                  - SecretRef: !Ref TraceApiKeySecretRef
+            - ''
+          TRACE_APP_ENABLE_FIXTURE_MODE: 'false'
+          TRACE_SEARCH_URL: !Sub 'https://${TraceHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/search'
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AWSXRayDaemonWriteAccess
+        - !If
+          - HasOpenAiApiKeySecret
+          - Version: '2012-10-17'
+            Statement:
+              - Sid: GetOpenAiApiKeySecretValue
+                Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !If
+                  - OpenAiApiKeySecretIsArn
+                  - !Ref OpenAiApiKeySecretRef
+                  - !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${OpenAiApiKeySecretRef}*'
+          - !Ref AWS::NoValue
+        - !If
+          - HasTraceApiKeySecret
+          - Version: '2012-10-17'
+            Statement:
+              - Sid: GetTraceApiKeySecretValueForAppApi
+                Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !If
+                  - TraceApiKeySecretIsArn
+                  - !Ref TraceApiKeySecretRef
+                  - !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${TraceApiKeySecretRef}*'
+          - !Ref AWS::NoValue
+
+  TraceAppApiInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TraceAppApiFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${TraceHttpApi}/*/*/api/*'
+
+  TraceAppApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref TraceHttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt TraceAppApiFunction.Arn
+      PayloadFormatVersion: '2.0'
+
+  TraceAppSearchRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref TraceHttpApi
+      RouteKey: 'POST /api/search'
+      Target: !Sub 'integrations/${TraceAppApiIntegration}'
+
+  TraceAppCasesRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref TraceHttpApi
+      RouteKey: 'GET /api/cases'
+      Target: !Sub 'integrations/${TraceAppApiIntegration}'
+
+  TraceAppHealthRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref TraceHttpApi
+      RouteKey: 'GET /api/health'
+      Target: !Sub 'integrations/${TraceAppApiIntegration}'
+
+  TraceAppFrontendBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+
+  TraceAppOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub '${AWS::StackName}-trace-app-oac'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  TraceAppResponseHeadersPolicy:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: !Sub '${AWS::StackName}-trace-app-security'
+        SecurityHeadersConfig:
+          ContentTypeOptions:
+            Override: true
+          FrameOptions:
+            FrameOption: DENY
+            Override: true
+          ReferrerPolicy:
+            ReferrerPolicy: strict-origin-when-cross-origin
+            Override: true
+          StrictTransportSecurity:
+            AccessControlMaxAgeSec: 31536000
+            IncludeSubdomains: true
+            Override: true
+
+  TraceAppSpaRewriteFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub '${AWS::StackName}-trace-app-spa-rewrite'
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Rewrite SPA routes to /index.html without touching /api/* requests.
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          var uri = request.uri || "/";
+
+          if (uri === "/" || uri === "") {
+            request.uri = "/index.html";
+            return request;
+          }
+
+          if (uri === "/api" || uri.indexOf("/api/") === 0) {
+            return request;
+          }
+
+          var lastSegment = uri.substring(uri.lastIndexOf("/") + 1);
+          if (lastSegment.indexOf(".") === -1) {
+            request.uri = "/index.html";
+          }
+
+          return request;
+        }
+
+  TraceAppDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        HttpVersion: http2and3
+        PriceClass: PriceClass_100
+        DefaultRootObject: index.html
+        Origins:
+          - Id: FrontendOrigin
+            DomainName: !GetAtt TraceAppFrontendBucket.RegionalDomainName
+            OriginAccessControlId: !Ref TraceAppOriginAccessControl
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+          - Id: ApiOrigin
+            DomainName: !Sub '${TraceHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}'
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1.2
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          Compress: true
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt TraceAppSpaRewriteFunction.FunctionMetadata.FunctionARN
+          ResponseHeadersPolicyId: !Ref TraceAppResponseHeadersPolicy
+          TargetOriginId: FrontendOrigin
+          ViewerProtocolPolicy: redirect-to-https
+        CacheBehaviors:
+          - PathPattern: /api/*
+            AllowedMethods:
+              - DELETE
+              - GET
+              - HEAD
+              - OPTIONS
+              - PATCH
+              - POST
+              - PUT
+            CachedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            Compress: true
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            TargetOriginId: ApiOrigin
+            ViewerProtocolPolicy: redirect-to-https
+
+  TraceAppFrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref TraceAppFrontendBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontRead
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action:
+              - s3:GetObject
+            Resource: !Sub '${TraceAppFrontendBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${TraceAppDistribution}'
 
 Outputs:
   HttpApiUrl:
     Description: Base URL for the HTTP API (POST /search)
-    Value: !Sub 'https://${ServerlessHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}'
+    Value: !Sub 'https://${TraceHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}'
   SearchUrl:
     Description: Full URL for search invocations
-    Value: !Sub 'https://${ServerlessHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/search'
+    Value: !Sub 'https://${TraceHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/search'
   TraceDatasetS3Uri:
     Description: >
       Resolved s3:// URI passed to the Lambda as TRACE_LANCE_S3_URI (same as TraceDataBucketName +
@@ -148,3 +442,24 @@ Outputs:
   TraceSearchFunctionArn:
     Description: Lambda function ARN
     Value: !GetAtt TraceSearchFunction.Arn
+  AppUrl:
+    Description: CloudFront URL for the production app frontend
+    Value: !Sub 'https://${TraceAppDistribution.DomainName}'
+  AppApiBaseUrl:
+    Description: Base URL to set as VITE_TRACE_API_BASE_URL; the frontend app appends /api/* itself.
+    Value: !Sub 'https://${TraceAppDistribution.DomainName}'
+  AppApiSearchUrl:
+    Description: CloudFront-routed search endpoint for the production app API
+    Value: !Sub 'https://${TraceAppDistribution.DomainName}/api/search'
+  FrontendBucketName:
+    Description: S3 bucket that serves the built frontend assets through CloudFront
+    Value: !Ref TraceAppFrontendBucket
+  FrontendPublishS3Uri:
+    Description: S3 URI that should receive the built demo-ui/dist publish artifact.
+    Value: !Sub 's3://${TraceAppFrontendBucket}'
+  TraceAppDistributionId:
+    Description: CloudFront distribution ID for SPA cache invalidation after frontend publish.
+    Value: !Ref TraceAppDistribution
+  TraceAppApiFunctionArn:
+    Description: Lambda function ARN for the Node app API
+    Value: !GetAtt TraceAppApiFunction.Arn

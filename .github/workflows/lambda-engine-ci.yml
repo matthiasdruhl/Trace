@@ -6,6 +6,7 @@ on:
       - main
   pull_request:
     paths:
+      - 'demo-ui/**'
       - 'lambda-engine/**'
       - 'mcp-bridge/**'
       - 'template.yaml'
@@ -31,6 +32,31 @@ jobs:
         run: npm ci
       - name: Typecheck & build
         run: npm run build
+      - name: Run MCP bridge test suite
+        run: npm test
+
+  frontend:
+    name: Frontend app
+    if: ${{ hashFiles('demo-ui/package.json') != '' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: demo-ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: demo-ui/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Run frontend tests if present
+        run: npm run --if-present test
+      - name: Run frontend typecheck if present
+        run: npm run --if-present typecheck
+      - name: Build frontend
+        run: npm run build
 
   rust:
     runs-on: ubuntu-latest
@@ -55,7 +81,7 @@ jobs:
       - name: cargo test
         run: cargo test
 
-  # Validates SAM template + reproduces the ARM64/cargo-lambda artifact path (same as deploy).
+  # Validates the production deploy inputs: SAM template, app API bundle, and frontend publish artifact.
   package:
     needs: rust
     runs-on: ubuntu-latest
@@ -67,6 +93,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-unknown-linux-gnu
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            mcp-bridge/package-lock.json
+            demo-ui/package-lock.json
 
       - name: Rust cache (lambda-engine)
         uses: Swatinem/rust-cache@v2
@@ -96,10 +130,41 @@ jobs:
       - name: Install aarch64 GNU linker (cross)
         run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
 
+      - name: Install frontend dependencies
+        working-directory: demo-ui
+        run: npm ci
+
+      - name: Install esbuild for SAM NodejsNpmEsbuildBuilder
+        run: npm install --global esbuild
+
+      - name: Build frontend publish artifact
+        working-directory: demo-ui
+        env:
+          VITE_TRACE_API_BASE_URL: https://trace.example.invalid
+        run: npm run build
+
+      - name: Validate frontend publish artifact
+        run: |
+          test -f demo-ui/dist/index.html
+          test -d demo-ui/dist/assets
+
+      - name: Upload frontend publish artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trace-app-frontend-dist
+          path: demo-ui/dist
+          if-no-files-found: error
+
       - name: SAM validate (--lint)
         run: sam validate --lint
+
+      - name: Remove stale local build outputs
+        run: rm -rf .aws-sam mcp-bridge/dist
 
       - name: SAM build (ARM64 / provided.al2023 via cargo-lambda)
         env:
           SAM_CLI_BETA_RUST_CARGO_LAMBDA: "1"
-        run: sam build --beta-features
+        run: sam build --beta-features --no-cached
+
+      - name: Validate packaged app API artifact
+        run: test -f .aws-sam/build/TraceAppApiFunction/app-api.mjs
