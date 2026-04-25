@@ -1,6 +1,53 @@
 # Trace
 
-Trace is an AWS-first semantic search system for archived data stored in Lance format on S3. The current repository contains:
+Trace is an AI-assisted investigation workflow for cold archives. It helps
+compliance and trust teams find, explain, and hand off the right evidence fast
+even when exact keywords do not match.
+
+Trace is purpose-built for one primary workflow: high-stakes archive review
+across historical incidents, audits, and compliance records where language is
+inconsistent but operational constraints still matter.
+
+## Problem / User / Why Existing Search Fails / Why Trace
+
+### Problem
+
+Archived incident records are hard to turn into a defensible answer. The right
+record may describe the same issue using different language, while
+keyword-overlapping records can still be the wrong operational match.
+
+### User
+
+Trace is designed for a regulatory, compliance, or trust and safety
+investigator who needs to answer questions like:
+
+- Have we seen a related incident before?
+- Are there matching cases in this city or document category?
+- Which archived records are relevant enough to support an audit, regulator
+  response, or internal escalation?
+- Can I hand another team a defensible evidence packet instead of a loose list
+  of search hits?
+
+The primary persona is documented in
+[docs/PERSONA.md](C:/Users/matth/Projects/Trace/Trace/docs/PERSONA.md).
+
+### Why Existing Search Fails
+
+- Keyword search is too brittle when prior records use different wording.
+- Broad semantic search alone can still be too noisy for real investigations.
+- Archive users need both flexible retrieval and strict operational narrowing.
+
+### Why Trace
+
+Trace combines semantic retrieval with constrained metadata filtering over
+`city_code`, `doc_type`, `timestamp`, and `incident_id`. That lets
+investigators start from a natural-language case request, tighten results to
+the jurisdiction, document class, and time window that matter, and move toward
+an explainable handoff instead of a generic search result page.
+
+## At A Glance
+
+The current repository contains:
 
 - a Rust Lambda search engine in `lambda-engine/`
 - a Node/TypeScript MCP bridge in `mcp-bridge/`
@@ -8,7 +55,23 @@ Trace is an AWS-first semantic search system for archived data stored in Lance f
 - a deployed proof runner and MCP stdio helper in `scripts/`
 - an AWS SAM template in `template.yaml`
 
-The current implementation supports Lance-backed nearest-neighbor search, constrained metadata filtering, API key or IAM-only HTTP access, and an MCP bridge that embeds natural-language queries before calling the search API.
+The current implementation supports Lance-backed nearest-neighbor search,
+constrained metadata filtering, API key or IAM-only HTTP access, and an MCP
+bridge that embeds natural-language queries before calling the search API.
+
+## How Trace Works
+
+```mermaid
+flowchart LR
+    A["Investigator asks a natural-language archive question"] --> B["MCP bridge embeds the query"]
+    B --> C["Trace Lambda applies safe metadata filters"]
+    C --> D["Lance dataset on S3 runs nearest-neighbor search"]
+    D --> E["Trace returns ranked records with metadata and optional text"]
+```
+
+Trace is not generic search infrastructure. It is an investigation workflow
+that balances semantic flexibility with structured control so operators can
+reach a defensible decision faster.
 
 ## Repository layout
 
@@ -176,6 +239,7 @@ Current status:
 - `docs/DATA_SPEC.md`: synthetic dataset schema and seed script behavior
 - `docs/DEMO_PLAN.md`: recommended live-demo structure, memorable queries, and proof points
 - `docs/DEPLOYMENT_RUNBOOK.md`: end-to-end deployment, upload, proof, and rollback checklist
+- `docs/PERSONA.md`: primary user persona and product framing anchor
 - `docs/deployed-proof-runbook.md`: how to run the deployed proof path and interpret artifacts
 - `docs/PITCH_VIDEO_PLAN.md`: three-minute finalist pitch structure and asset checklist
 - `docs/PROJECT_STATE.md`: current implementation snapshot

@@ -1,8 +1,15 @@
 # Trace architecture
 
+Trace is a purpose-built archive investigation system for regulatory,
+compliance, and trust and safety operators. The architecture matters because it
+supports one specific product promise: investigators should be able to move
+from a messy natural-language case request to a defensible set of evidence
+without losing operational control.
+
 ## Overview
 
-Trace is a serverless semantic search stack built around a Lance dataset stored on S3.
+Trace is a serverless investigation workflow backbone built around a Lance
+dataset stored on S3.
 
 The active runtime path is:
 
@@ -10,6 +17,11 @@ The active runtime path is:
 2. The MCP bridge optionally embeds natural-language text into a query vector.
 3. The Rust Lambda validates the request, enforces optional API key auth, opens the Lance dataset, applies a constrained metadata filter when present, and runs nearest-neighbor search.
 4. Results are returned as JSON over API Gateway HTTP API v2 or direct Lambda invoke.
+
+In product terms, this means Trace lets an investigator search by intent first,
+then narrow the result set by city, document type, or time without falling back
+to brittle keyword-only workflows, and sets up the evidence for a later
+explanation or handoff layer.
 
 The repo also contains an operator-oriented proof path used to validate that deployed HTTP and MCP traversal behave correctly against a live stack.
 
@@ -55,7 +67,10 @@ The MCP bridge exposes a single tool:
 
 - `search_cold_archive`
 
-It validates tool arguments, generates embeddings through OpenAI unless mock mode is enabled, calls the deployed Trace search endpoint, and returns the normalized JSON response to the MCP client.
+It validates tool arguments, generates embeddings through OpenAI unless mock
+mode is enabled, calls the deployed Trace search endpoint, and returns the
+normalized JSON response to the MCP client. This is the natural place to expose
+an AI-assisted investigation experience rather than only a bare retrieval call.
 
 ### `scripts/prove_deployed_path.py` and `scripts/proof_mcp_stdio.py`
 
@@ -121,5 +136,5 @@ The Lambda parses the filter into a typed AST and compiles it into a predicate s
 ## Current gaps
 
 - No end-user UI is included in this repository
-- A real embedding-backed S3 validation run and eval-prefix cutover have not happened yet
-- Stable example fixtures have not yet been committed under `fixtures/deployed/examples/`
+- The current MCP bridge exposes retrieval but not yet a richer investigation handoff or explanation flow
+- There are not yet committed polished comparison artifacts or screenshots for the main demo story

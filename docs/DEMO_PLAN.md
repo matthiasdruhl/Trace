@@ -12,15 +12,20 @@ A strong Trace demo should prove three things in under two minutes:
 
 - keyword search is not enough for this workflow
 - semantic search alone can still be too broad
-- Trace's semantic retrieval plus metadata filtering finds the right evidence
+- Trace's investigation workflow finds, explains, and narrows the right evidence
 
 ## 2. Recommended audience framing
 
+Primary persona:
+
+- Maya Chen, a senior trust and safety or compliance investigator at a mobility platform
+
 Default audience story:
 
-- an investigation or compliance operator needs to search archived incident records
+- a trust and safety or compliance investigator needs to search archived incident records
 - the archive is large, language is inconsistent, and the operator often knows only partial context
 - the operator needs trustworthy results quickly, not just approximate matches
+- the operator ultimately needs a defensible handoff, not a loose pile of results
 
 Use that framing consistently in the spoken demo, README, and UI copy.
 
@@ -30,10 +35,10 @@ Use that framing consistently in the spoken demo, README, and UI copy.
 
 Suggested script:
 
-"An operator is trying to find related archived incidents, but the exact words
+"Maya is trying to respond to a case escalation, but the exact words
 in the query often do not appear in the records. Keyword search can miss the
 right evidence, and semantic search without filters can still return results
-that are too broad for a real investigation."
+that are too broad for a real investigation or regulator response."
 
 Keep this segment under 20 seconds.
 
@@ -46,6 +51,7 @@ Recommended first query:
 What to show:
 
 - the query
+- the interpreted case request or visible filters if available
 - the top Trace results
 - why those results are relevant even if wording differs
 - provenance or record metadata
@@ -66,6 +72,7 @@ What to show:
 - without the filter, results are broader
 - with the filter, the result set becomes operationally useful
 - every returned row obeys the investigation constraint
+- the operator is now closer to an evidence handoff instead of more manual search work
 
 Goal:
 
@@ -78,6 +85,7 @@ What to say briefly:
 - the search runs against a deployed Lambda-backed Lance dataset on S3
 - the same path is exposed through an MCP bridge
 - the repo includes proof artifacts and local relevance evaluation, not just a mock UI
+- the AI layer is visible through interpreted filters, explanations, or a short investigation summary
 
 Goal:
 
@@ -90,6 +98,7 @@ Prepare these before submission:
 - three memorable example queries
 - one query where keyword search fails visibly
 - one query where semantic plus metadata filtering matters visibly
+- one AI-assisted explanation or handoff moment
 - one screenshot or stable fixture per key demo moment
 - one short architecture visual
 - one benchmark or eval summary line
@@ -112,7 +121,7 @@ Each example should have a job:
 
 - one proves semantic advantage
 - one proves filtering advantage
-- one proves practical operator value
+- one proves practical operator value and supports an evidence handoff
 
 ## 6. UI recommendations for the demo surface
 
@@ -121,9 +130,11 @@ If a small UI is built, prioritize these elements:
 - one prominent search box
 - visible safe filter controls
 - copyable example queries
+- visible interpreted filters or case framing
 - readable result cards
 - metadata badges
-- optional "why this matched" explanation
+- a visible "why this matched" explanation
+- a short evidence handoff or investigation summary
 - result timing and count
 - helpful no-results guidance
 
@@ -157,6 +168,7 @@ Before any recording or live demo:
 - keep one local fallback demo path in case cloud setup misbehaves
 - avoid typing complex filters live if a safer preset UI is available
 - do not rely on explaining hidden implementation details to rescue clarity
+- keep the AI-assisted explanation or handoff moment deterministic enough to demo confidently
 
 ## 9. Success criteria
 
@@ -164,6 +176,7 @@ A winning demo should make a viewer think:
 
 - "I immediately get the problem"
 - "I can see why this is better than normal search"
+- "I can see how this helps someone finish the investigation, not just search faster"
 - "This feels real and trustworthy"
 - "I can imagine someone using this"
 

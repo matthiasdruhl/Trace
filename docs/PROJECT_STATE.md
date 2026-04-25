@@ -15,12 +15,18 @@ The active code path supports:
 
 Against the active backlog in `docs/NEXT_STEPS.md`, the current status is:
 
-- Step 1 (ingestion/retrieval story): implemented in code
-- Step 2 (eval dataset path): complete
-- Step 3 (deployed proof path): complete
-- Step 4 (retrieval relevance harness): complete
-- Steps 7, 8, and 9: not implemented yet
-- Steps 5 and 6: partially complete through early docs/tooling, but not finished as operator-ready systems
+- step 1 (clarify the product story everywhere): complete
+- step 2 (build a strong demo surface): not implemented yet
+- step 3 (create a side-by-side proof of value): not implemented yet
+- step 4 (package benchmark and evaluation evidence for judges): partially complete
+- step 5 (tighten deployment and operator documentation): partially complete
+- step 6 (harden deployed proof automation): partially complete
+- step 7 (add one memorable trust or explainability feature): not implemented yet
+- step 8 (prepare the finalist pitch path now): not implemented yet
+
+Strategically, Trace is now better described as an AI-assisted investigation
+workflow than as a search system alone. The retrieval backbone is credible; the
+main gap is turning that backbone into a more visible investigation experience.
 
 ## What is implemented
 
@@ -47,6 +53,11 @@ Implemented in `mcp-bridge/`:
 - mock embedding and mock search modes for local testing
 - request/response validation around the Lambda HTTP API
 - CI build coverage
+
+Current product implication:
+
+- the MCP bridge provides the opening for an AI-native investigation flow
+- today it is still exposed mostly as retrieval plumbing rather than a full investigation handoff experience
 
 ### Data generation
 
@@ -162,6 +173,7 @@ Deployed in AWS (`us-east-1`):
 - There is not yet a single shared or production-facing stack beyond the current `trace-smoke` and `trace-eval` layout
 - There are not yet benchmark artifacts for latency, memory footprint, or cost-per-query
 - There is not yet a completed deployment history for smoke/eval stacks, although `docs/DEPLOYMENT_RUNBOOK.md` now documents that workflow
+- There is not yet a visible explanation, interpreted-filter, or investigation-summary layer that turns retrieval into a clearly AI-native workflow
 
 ## Current repo guidance
 

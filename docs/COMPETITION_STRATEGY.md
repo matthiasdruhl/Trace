@@ -17,7 +17,7 @@ To score highly, Trace should feel obvious within the first minute:
 - who it is for
 - what painful workflow it improves
 - why existing approaches miss important results
-- why Trace's hybrid search is better
+- why Trace's investigation workflow is better than plain search
 - that the system actually works end to end
 
 If those points are not legible immediately, technical depth alone will not be
@@ -29,15 +29,15 @@ Use one primary user and one primary workflow everywhere.
 
 Recommended default positioning:
 
-- User: compliance, trust, safety, or audit operators investigating archived incidents
-- Problem: keyword search misses related incidents when language differs, and naive semantic search alone is too loose for real operational filters
-- Solution: Trace combines semantic retrieval with constrained metadata filtering so operators can find the right archived records faster and more reliably
+- User: regulatory, compliance, trust and safety, or audit operators investigating high-stakes archived cases
+- Problem: keyword search misses related incidents when language differs, and naive semantic search alone is too loose for real operational decisions
+- Solution: Trace combines semantic retrieval with constrained metadata filtering and AI-assisted evidence framing so operators can find, explain, and hand off the right archived records faster
 
 Working positioning sentence:
 
-> Trace helps investigation teams search cold incident archives with semantic
-> retrieval plus structured filters, so they can find the right evidence even
-> when exact keywords do not match.
+> Trace is an AI-assisted investigation workflow for cold archives that helps
+> compliance and trust teams find, explain, and hand off the right evidence
+> fast even when exact keywords do not match.
 
 Everything in the README, demo, UI, and pitch should reinforce one version of
 that story.
@@ -80,6 +80,7 @@ Highest-value additions:
 - make the hybrid-search angle explicit rather than assuming judges will infer it
 - add one memorable "why this matched" or "explain the result" feature
 - consider a natural-language-to-safe-filter experience if it can be implemented cleanly
+- make the MCP and Codex angle visible through an AI-assisted investigation handoff, not just a hidden bridge
 - highlight that Trace is built for cold archives where exact wording often differs from the original query
 
 Target outcome:
@@ -138,6 +139,7 @@ Deliverables:
 - a fixed set of strong example queries
 - visible filter controls or safe structured inputs
 - result explanations or provenance indicators
+- an investigation-summary or evidence-handoff moment that makes the AI layer visible
 
 Why it matters:
 
@@ -190,6 +192,7 @@ Before submission, Trace should ideally have:
 - at least one side-by-side "keyword fails, Trace succeeds" artifact
 - at least one "semantic alone is insufficient, filters matter" artifact
 - one polished demo surface, even if minimal
+- one memorable AI-native moment such as interpreted filters, why-this-matched, or an evidence handoff
 - one or two quotable metrics
 - one clean architecture visual
 - one rehearsed three-minute pitch path
@@ -199,7 +202,7 @@ Before submission, Trace should ideally have:
 These can lower competition performance even if the repo gets technically stronger:
 
 - adding more infrastructure depth without making the product easier to understand
-- presenting Trace as generic vector search instead of a workflow-specific tool
+- presenting Trace as generic vector search instead of an investigation workflow
 - burying the best demo query under too much setup
 - using too many personas or use cases at once
 - shipping a strong backend with no polished front door
