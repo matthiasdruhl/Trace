@@ -1,11 +1,21 @@
 name: deploy production
 
 on:
-  push:
+  workflow_run:
+    workflows:
+      - targeted app/backend CI
+    types:
+      - completed
     branches:
       - main
   workflow_dispatch:
     inputs:
+      ci_run_id:
+        description: Successful targeted app/backend CI run ID to promote to production
+        required: true
+      ci_head_sha:
+        description: Optional commit SHA to verify against the CI run
+        required: false
       stack_name:
         description: Optional CloudFormation stack name override
         required: false
@@ -35,17 +45,22 @@ on:
         required: false
 
 permissions:
+  actions: read
   contents: read
   id-token: write
 
 concurrency:
   group: deploy-production
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
     name: Deploy Stack And Publish Frontend
+    if: |
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push') ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     environment: production
     env:
       AWS_REGION: ${{ inputs.aws_region || vars.AWS_REGION || 'us-east-1' }}
@@ -59,7 +74,93 @@ jobs:
       OPENAI_API_KEY_SECRET_JSON_KEY: ${{ inputs.openai_api_key_secret_json_key || vars.OPENAI_API_KEY_SECRET_JSON_KEY || '' }}
       OPENAI_EMBEDDING_MODEL: ${{ inputs.openai_embedding_model || vars.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small' }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Resolve vetted CI run
+        id: ci-run
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
+        env:
+          INPUT_CI_RUN_ID: ${{ inputs.ci_run_id || '' }}
+          INPUT_CI_HEAD_SHA: ${{ inputs.ci_head_sha || '' }}
+        with:
+          script: |
+            const expectedWorkflow = "targeted app/backend CI";
+            const requiredArtifacts = [
+              "trace-app-frontend-dist",
+              "trace-app-sam-build",
+            ];
+
+            let run;
+            if (context.eventName === "workflow_run") {
+              run = context.payload.workflow_run;
+            } else {
+              const runId = Number(process.env.INPUT_CI_RUN_ID);
+              if (!Number.isInteger(runId) || runId <= 0) {
+                core.setFailed("workflow_dispatch requires a valid numeric ci_run_id.");
+                return;
+              }
+
+              const response = await github.rest.actions.getWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: runId,
+              });
+              run = response.data;
+            }
+
+            if (run.name !== expectedWorkflow) {
+              core.setFailed(
+                `Refusing to deploy from workflow '${run.name}'. Expected '${expectedWorkflow}'.`,
+              );
+              return;
+            }
+
+            if (run.conclusion !== "success") {
+              core.setFailed(
+                `Refusing to deploy from CI run ${run.id} because conclusion was '${run.conclusion}'.`,
+              );
+              return;
+            }
+
+            if (context.eventName === "workflow_run" && run.event !== "push") {
+              core.setFailed(
+                `Refusing to auto-deploy from CI event '${run.event}'. Automatic production promotion is limited to push-based main CI runs.`,
+              );
+              return;
+            }
+
+            if (run.head_branch !== "main") {
+              core.setFailed(
+                `Refusing to deploy from branch '${run.head_branch}'. Production promotion is limited to main.`,
+              );
+              return;
+            }
+
+            const expectedSha = process.env.INPUT_CI_HEAD_SHA?.trim();
+            if (expectedSha && expectedSha !== run.head_sha) {
+              core.setFailed(
+                `CI run ${run.id} produced commit ${run.head_sha}, which did not match requested ci_head_sha ${expectedSha}.`,
+              );
+              return;
+            }
+
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: run.id,
+              per_page: 100,
+            });
+            const artifactNames = new Set(artifacts.map((artifact) => artifact.name));
+            const missingArtifacts = requiredArtifacts.filter((name) => !artifactNames.has(name));
+            if (missingArtifacts.length > 0) {
+              core.setFailed(
+                `CI run ${run.id} is missing required artifacts: ${missingArtifacts.join(", ")}.`,
+              );
+              return;
+            }
+
+            core.setOutput("run_id", String(run.id));
+            core.setOutput("head_sha", run.head_sha);
+            core.setOutput("run_url", run.html_url);
+            core.setOutput("run_name", run.name);
 
       - name: Validate deployment configuration
         shell: bash
@@ -86,73 +187,54 @@ jobs:
             exit 1
           fi
 
+      - name: Download vetted frontend artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.ci-run.outputs.run_id }}
+          name: trace-app-frontend-dist
+          path: frontend-dist
+
+      - name: Download vetted SAM build artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.ci-run.outputs.run_id }}
+          name: trace-app-sam-build
+          path: sam-build
+
+      - name: Validate downloaded artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -f frontend-dist/index.html
+          test -d frontend-dist/assets
+
+          template_path=""
+          if [[ -f sam-build/template.yaml ]]; then
+            template_path="sam-build/template.yaml"
+          elif [[ -f sam-build/.aws-sam/build/template.yaml ]]; then
+            template_path="sam-build/.aws-sam/build/template.yaml"
+          fi
+
+          if [[ -z "${template_path}" ]]; then
+            echo "Unable to locate a deployable SAM template in the trace-app-sam-build artifact." >&2
+            exit 1
+          fi
+
+          echo "SAM_TEMPLATE_FILE=${template_path}" >> "${GITHUB_ENV}"
+
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
         with:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Install protobuf compiler
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: |
-            mcp-bridge/package-lock.json
-            demo-ui/package-lock.json
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-unknown-linux-gnu
-
-      - name: Rust cache (lambda-engine)
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: lambda-engine
-
       - name: Install SAM CLI
-        uses: aws-actions/setup-sam@v2
+        uses: aws-actions/setup-sam@f84ec7d548307efafe33230528756de3c5841a17
 
-      - name: Install Zig
-        uses: mlugg/setup-zig@v1
-        with:
-          version: 0.14.0
-
-      - name: Cache cargo-lambda binary
-        id: cache-cargo-lambda
-        uses: actions/cache@v4
-        with:
-          path: ~/.cargo/bin/cargo-lambda
-          key: cargo-lambda-bin-${{ runner.os }}-x86_64-v1
-
-      - name: Install cargo-lambda
-        if: steps.cache-cargo-lambda.outputs.cache-hit != 'true'
-        run: curl -fsSL https://cargo-lambda.info/install.sh | sh
-
-      - name: Install aarch64 GNU linker (cross)
-        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
-
-      - name: Install frontend dependencies
-        working-directory: demo-ui
-        run: npm ci
-
-      - name: Install esbuild for SAM NodejsNpmEsbuildBuilder
-        run: npm install --global esbuild
-
-      - name: SAM validate (--lint)
-        run: sam validate --lint
-
-      - name: Remove stale local build outputs
-        run: rm -rf .aws-sam mcp-bridge/dist
-
-      - name: SAM build
-        env:
-          SAM_CLI_BETA_RUST_CARGO_LAMBDA: "1"
-        run: sam build --beta-features --no-cached
-
-      - name: Deploy stack
+      - name: Deploy stack from vetted SAM artifact
         shell: bash
         run: |
           set -euo pipefail
@@ -177,6 +259,7 @@ jobs:
 
           deploy_cmd=(
             sam deploy
+            --template-file "${SAM_TEMPLATE_FILE}"
             --stack-name "${SAM_STACK_NAME}"
             --region "${AWS_REGION}"
             --capabilities CAPABILITY_IAM
@@ -225,44 +308,113 @@ jobs:
           {
             echo "APP_URL=${app_url}"
             echo "APP_API_BASE_URL=${app_api_base_url}"
+            echo "APP_HEALTH_URL=${app_api_base_url%/}/api/health"
             echo "FRONTEND_BUCKET_NAME=${frontend_bucket_name}"
             echo "TRACE_APP_DISTRIBUTION_ID=${distribution_id}"
           } >> "${GITHUB_ENV}"
 
-      - name: Build frontend against deployed app API origin
-        working-directory: demo-ui
-        run: VITE_TRACE_API_BASE_URL="${APP_API_BASE_URL}" npm run build
-
-      - name: Publish frontend assets
+      - name: Publish vetted frontend assets
         shell: bash
         run: |
           set -euo pipefail
 
-          aws s3 sync demo-ui/dist "s3://${FRONTEND_BUCKET_NAME}/" \
+          aws s3 sync frontend-dist "s3://${FRONTEND_BUCKET_NAME}/" \
             --delete \
             --exclude "index.html" \
             --cache-control "public,max-age=31536000,immutable"
 
-          aws s3 cp demo-ui/dist/index.html "s3://${FRONTEND_BUCKET_NAME}/index.html" \
+          aws s3 cp frontend-dist/index.html "s3://${FRONTEND_BUCKET_NAME}/index.html" \
             --cache-control "no-cache,no-store,must-revalidate" \
             --content-type "text/html; charset=utf-8"
 
-      - name: Invalidate CloudFront
+      - name: Invalidate CloudFront and wait for completion
+        shell: bash
         run: |
-          aws cloudfront create-invalidation \
+          set -euo pipefail
+
+          invalidation_id="$(
+            aws cloudfront create-invalidation \
+              --distribution-id "${TRACE_APP_DISTRIBUTION_ID}" \
+              --paths "/*" \
+              --query 'Invalidation.Id' \
+              --output text
+          )"
+
+          aws cloudfront wait invalidation-completed \
             --distribution-id "${TRACE_APP_DISTRIBUTION_ID}" \
-            --paths "/*"
+            --id "${invalidation_id}"
+
+          echo "CLOUDFRONT_INVALIDATION_ID=${invalidation_id}" >> "${GITHUB_ENV}"
+
+      - name: Smoke verify live production endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          probe_url() {
+            local label="$1"
+            local url="$2"
+            local expected_snippet="${3:-}"
+            local response_file
+            response_file="$(mktemp)"
+
+            for attempt in {1..10}; do
+              status_code="$(
+                curl --location --silent --show-error \
+                  --output "${response_file}" \
+                  --write-out '%{http_code}' \
+                  "${url}" || true
+              )"
+
+              if [[ "${status_code}" == "200" ]]; then
+                if [[ -n "${expected_snippet}" ]] && ! grep -qi "${expected_snippet}" "${response_file}"; then
+                  echo "Attempt ${attempt}: ${label} returned HTTP 200 but missing expected content '${expected_snippet}'." >&2
+                else
+                  echo "${label} check passed on attempt ${attempt}: ${url}"
+                  rm -f "${response_file}"
+                  return 0
+                fi
+              else
+                echo "Attempt ${attempt}: ${label} returned HTTP ${status_code}." >&2
+              fi
+
+              sleep 15
+            done
+
+            echo "${label} smoke check failed for ${url}. Last response body:" >&2
+            cat "${response_file}" >&2
+            rm -f "${response_file}"
+            return 1
+          }
+
+          probe_url "Frontend root" "${APP_URL}" "<html"
+          probe_url "API health" "${APP_HEALTH_URL}"
 
       - name: Write deployment summary
+        if: always()
         shell: bash
         run: |
           {
             echo "## Production Deploy"
             echo
-            echo "- Stack: \`${SAM_STACK_NAME}\`"
-            echo "- Region: \`${AWS_REGION}\`"
-            echo "- App URL: ${APP_URL}"
-            echo "- App API base URL: ${APP_API_BASE_URL}"
-            echo "- Frontend bucket: \`${FRONTEND_BUCKET_NAME}\`"
-            echo "- CloudFront distribution: \`${TRACE_APP_DISTRIBUTION_ID}\`"
+            echo "- Status: \`${{ job.status }}\`"
+            echo "- Promoted from CI: [${{ steps.ci-run.outputs.run_name }} #${{ steps.ci-run.outputs.run_id }}](${{ steps.ci-run.outputs.run_url }})"
+            echo "- Commit: \`${{ steps.ci-run.outputs.head_sha }}\`"
+            echo "- Stack: \`${SAM_STACK_NAME:-unknown}\`"
+            echo "- Region: \`${AWS_REGION:-unknown}\`"
+            if [[ -n "${APP_URL:-}" ]]; then
+              echo "- App URL: ${APP_URL}"
+            fi
+            if [[ -n "${APP_HEALTH_URL:-}" ]]; then
+              echo "- Health URL: ${APP_HEALTH_URL}"
+            fi
+            if [[ -n "${FRONTEND_BUCKET_NAME:-}" ]]; then
+              echo "- Frontend bucket: \`${FRONTEND_BUCKET_NAME}\`"
+            fi
+            if [[ -n "${TRACE_APP_DISTRIBUTION_ID:-}" ]]; then
+              echo "- CloudFront distribution: \`${TRACE_APP_DISTRIBUTION_ID}\`"
+            fi
+            if [[ -n "${CLOUDFRONT_INVALIDATION_ID:-}" ]]; then
+              echo "- CloudFront invalidation: \`${CLOUDFRONT_INVALIDATION_ID}\`"
+            fi
           } >> "${GITHUB_STEP_SUMMARY}"
