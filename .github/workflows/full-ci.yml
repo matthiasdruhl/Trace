@@ -1,46 +1,100 @@
 name: full CI
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      run_mcp_bridge:
+        description: Run the MCP bridge Node validation job
+        required: false
+        type: boolean
+        default: true
+      run_frontend:
+        description: Run the frontend Node validation job
+        required: false
+        type: boolean
+        default: true
+      run_rust:
+        description: Run the Rust validation job
+        required: false
+        type: boolean
+        default: true
+      run_package:
+        description: Build promotable frontend and SAM artifacts
+        required: false
+        type: boolean
+        default: true
+      run_python:
+        description: Run the Python scripts and tests job
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
 
 jobs:
   mcp-bridge:
     name: MCP bridge (Node)
+    if: ${{ inputs.run_mcp_bridge != false }}
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: mcp-bridge
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: '24'
+          node-version: '22'
           cache: npm
           cache-dependency-path: mcp-bridge/package-lock.json
       - name: Install dependencies
         run: npm ci
       - name: Typecheck & build
         run: npm run build
+      - name: Run MCP bridge test suite
+        run: npm test
+
+  frontend:
+    name: Frontend app
+    if: ${{ inputs.run_frontend != false && hashFiles('demo-ui/package.json') != '' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: demo-ui
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: demo-ui/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Run frontend tests if present
+        run: npm run --if-present test
+      - name: Run frontend typecheck if present
+        run: npm run --if-present typecheck
+      - name: Build frontend
+        run: npm run build
 
   rust:
     name: Rust
+    if: ${{ inputs.run_rust != false || inputs.run_package != false }}
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: lambda-engine
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Install protobuf compiler
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
         with:
+          toolchain: stable
           components: rustfmt, clippy
       - name: Rust cache (lambda-engine)
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@f13886b937689c021905a6b90929199931d60db1
         with:
           workspaces: lambda-engine
       - name: cargo fmt --check
@@ -51,62 +105,120 @@ jobs:
         run: cargo test
 
   package:
-    name: SAM package
-    needs: rust
+    name: Promotable build artifacts
+    if: ${{ inputs.run_package != false }}
+    needs:
+      - mcp-bridge
+      - frontend
+      - rust
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Install protobuf compiler
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            mcp-bridge/package-lock.json
+            demo-ui/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: stable
           targets: aarch64-unknown-linux-gnu
 
       - name: Rust cache (lambda-engine)
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@f13886b937689c021905a6b90929199931d60db1
         with:
           workspaces: lambda-engine
 
       - name: Install SAM CLI
-        uses: aws-actions/setup-sam@v2
+        uses: aws-actions/setup-sam@f84ec7d548307efafe33230528756de3c5841a17
 
       - name: Install Zig
-        uses: mlugg/setup-zig@v1
+        uses: mlugg/setup-zig@a67e68dc5c8281d9608136d3d7ca1b282213e4ac
         with:
           version: 0.14.0
 
       - name: Cache cargo-lambda binary
         id: cache-cargo-lambda
-        uses: actions/cache@v4
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
         with:
           path: ~/.cargo/bin/cargo-lambda
-          key: cargo-lambda-bin-${{ runner.os }}-x86_64-v1
+          key: cargo-lambda-bin-${{ runner.os }}-1.9.1
 
       - name: Install cargo-lambda
         if: steps.cache-cargo-lambda.outputs.cache-hit != 'true'
-        run: curl -fsSL https://cargo-lambda.info/install.sh | sh
+        run: cargo install --locked cargo-lambda --version 1.9.1
 
       - name: Install aarch64 GNU linker (cross)
         run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
 
+      - name: Install MCP bridge dependencies
+        working-directory: mcp-bridge
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: demo-ui
+        run: npm ci
+
+      - name: Install esbuild for SAM NodejsNpmEsbuildBuilder
+        run: npm install --global esbuild
+
+      - name: Build frontend publish artifact
+        working-directory: demo-ui
+        env:
+          VITE_TRACE_API_BASE_URL: https://trace.example.invalid
+        run: npm run build
+
+      - name: Validate frontend publish artifact
+        run: |
+          test -f demo-ui/dist/index.html
+          test -d demo-ui/dist/assets
+
+      - name: Upload frontend publish artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: trace-app-frontend-dist
+          path: demo-ui/dist
+          if-no-files-found: error
+
       - name: SAM validate (--lint)
         run: sam validate --lint
+
+      - name: Remove stale local build outputs
+        run: rm -rf .aws-sam mcp-bridge/dist
 
       - name: SAM build (ARM64 / provided.al2023 via cargo-lambda)
         env:
           SAM_CLI_BETA_RUST_CARGO_LAMBDA: "1"
-        run: sam build --beta-features
+        run: sam build --beta-features --no-cached
+
+      - name: Validate packaged app API artifact
+        run: |
+          test -f .aws-sam/build/template.yaml
+          test -f .aws-sam/build/TraceAppApiFunction/app-api.mjs
+
+      - name: Upload SAM build artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: trace-app-sam-build
+          path: .aws-sam/build
+          if-no-files-found: error
 
   python-tests:
     name: Scripts and tests (Python)
+    if: ${{ inputs.run_python != false }}
     runs-on: ubuntu-latest
     env:
       PYTHONPATH: .
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
           cache: pip

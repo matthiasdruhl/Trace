@@ -9,7 +9,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "test": "npm run build && node --test --experimental-test-isolation=none dist/index.test.js dist/lib/app-api.test.js dist/lib/embeddings.test.js dist/lib/explanations.test.js dist/lib/filters.test.js dist/lib/mcp-tool.test.js dist/lib/search-client.test.js"
   },
   "engines": {
     "node": ">=18"
