@@ -1,6 +1,6 @@
 # Trace next steps
 
-Last updated: 2026-04-24
+Last updated: 2026-04-26
 
 This is the active prioritized backlog for Trace.
 
@@ -98,7 +98,7 @@ Recommended output:
 
 ## 2. Build a strong demo surface
 
-Status: `Not implemented yet`
+Status: `Partially complete`
 
 Why this matters:
 
@@ -107,12 +107,22 @@ Why this matters:
 
 What to do:
 
-- build a small user-facing UI or a very polished walkthrough surface
-- expose a single obvious search flow
-- add visible filter controls or safe structured inputs
-- show result metadata, provenance, and a visible explanation or handoff layer
-- make the baseline AI-native moment mandatory in the main demo flow: interpreted filters, "why this matched," or a short evidence handoff
-- handle empty states and invalid inputs gracefully
+- keep the existing React app, but redesign it from a generic search page into an investigation workspace
+- reduce the oversized marketing/hero treatment and move faster into the active workflow
+- expose one primary search path with a clear left-to-right or top-to-bottom investigation narrative
+- make the page feel like an operator desk: request, applied scope, surfaced evidence, and defensible handoff
+- add visible structured filters and a compact summary of the interpreted scope
+- show result metadata, provenance, and a visible explanation or handoff layer without overstating model certainty
+- introduce one memorable signature visual such as:
+  - evidence timeline
+  - evidence ladder
+  - jurisdiction / document-type summary strip
+  - compact "Trace reasoning" panel
+- promote one top lead or primary finding above the rest of the results so the demo has an immediate "aha" moment
+- turn generic result cards into evidence cards with stronger hierarchy, clearer labels, and visible filter-match context
+- improve motion and sequencing so the app feels active during search, interpretation, and result assembly
+- design empty, loading, error, and no-result states as intentional parts of the demo, not fallback leftovers
+- make the frontend feel polished enough that a judge remembers it after a short demo
 
 Definition of done:
 
@@ -121,11 +131,14 @@ Definition of done:
 - the product feels intentional rather than stitched together
 - the product visibly helps someone move from query to defensible action
 - the main demo includes at least one reliable explanation or handoff moment that proves Trace is more than search plus filters
+- the UI feels like an investigation command center rather than a generic search screen
+- one memorable visual or interaction makes the product easier to recall after judging
 
 Recommended output:
 
-- lightweight web UI or equivalent polished demo surface
+- polished web UI with a stronger investigation-workspace layout
 - baseline explanation or evidence-handoff experience integrated into the main flow
+- one signature visual or interaction that makes the demo more memorable
 - stable screenshots or short recordings for fallback use
 
 ## 3. Create a side-by-side proof of value
