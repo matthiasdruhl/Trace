@@ -5,6 +5,11 @@ export type SearchFilters = {
   endDate?: string;
 };
 
+export type SubmittedSearchContext = {
+  queryText: string;
+  filters: SearchFilters;
+};
+
 export type ApiSearchRequest = {
   queryText: string;
   filters?: {
@@ -43,9 +48,11 @@ export type SearchResponse = {
 export type CuratedCase = {
   id: string;
   title: string;
+  subtitle?: string;
   description: string;
   queryText: string;
   filters: SearchFilters;
+  fixtureAvailable?: boolean;
 };
 
 export type ApiCasePayload = {
@@ -60,6 +67,7 @@ export type ApiCasePayload = {
   query?: unknown;
   prompt?: unknown;
   filters?: unknown;
+  fixtureAvailable?: unknown;
 };
 
 export type HealthState = {
@@ -68,3 +76,23 @@ export type HealthState = {
 };
 
 export type SearchStatus = "idle" | "loading" | "success" | "error";
+
+export type HandoffSummary = {
+  goal: string;
+  appliedScope: string;
+  primaryEvidence: string;
+  suggestedHandoff: string;
+};
+
+export type InvestigationWorkspaceModel = {
+  investigationRequest: string;
+  activeScope: string;
+  timeWindow: string;
+  queryModeLabel: string;
+  resultCount: number;
+  latencyLabel: string;
+  submittedFilters: SearchFilters;
+  topLead: SearchResult | null;
+  supportingResults: SearchResult[];
+  handoffSummary: HandoffSummary | null;
+};
