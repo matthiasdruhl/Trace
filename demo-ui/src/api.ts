@@ -15,14 +15,17 @@ const curatedCaseFallbacks: CuratedCase[] = [
   {
     id: "overdue-inspection-audit",
     title: "Overdue inspection audit",
+    subtitle: "Semantic-only win",
     description:
       "Show the archive can retrieve overdue inspection audit cases without a metadata prefilter.",
     queryText: "recent vehicle inspection audit with overdue paperwork",
     filters: {},
+    fixtureAvailable: true,
   },
   {
     id: "nyc-safety-incident",
     title: "NYC safety incident",
+    subtitle: "Filtering win",
     description:
       "Use city and document-type filters to narrow a semantic query to the exact regulatory slice.",
     queryText: "safety incident reports in New York with supporting narrative",
@@ -30,10 +33,12 @@ const curatedCaseFallbacks: CuratedCase[] = [
       cityCode: "NYC-TLC",
       docType: "Safety_Incident_Log",
     },
+    fixtureAvailable: true,
   },
   {
     id: "insurance-lapse-coverage-gap",
     title: "Insurance lapse / coverage gap",
+    subtitle: "Operator-value case",
     description:
       "Surface insurance lapse cases that matter operationally when coverage gaps can suspend vehicles.",
     queryText: "insurance lapse or coverage gap for fleet vehicles",
@@ -41,6 +46,7 @@ const curatedCaseFallbacks: CuratedCase[] = [
       cityCode: "CHI-BACP",
       docType: "Insurance_Lapse_Report",
     },
+    fixtureAvailable: false,
   },
 ];
 
@@ -139,6 +145,7 @@ function normalizeCaseRecord(input: unknown, index: number): CuratedCase {
       readOptionalString(record.title) ??
       fallback?.title ??
       `Example ${index + 1}`,
+    subtitle: readOptionalString(record.subtitle) ?? fallback?.subtitle,
     description:
       readOptionalString(record.description) ??
       readOptionalString(record.narrative) ??
@@ -163,6 +170,10 @@ function normalizeCaseRecord(input: unknown, index: number): CuratedCase {
         readOptionalString(rawFilters.endTimestamp)?.slice(0, 10) ??
         fallback?.filters.endDate,
     },
+    fixtureAvailable:
+      typeof record.fixtureAvailable === "boolean"
+        ? record.fixtureAvailable
+        : fallback?.fixtureAvailable,
   };
 }
 
@@ -200,16 +211,19 @@ function normalizeSearchResponse(payload: unknown): SearchResponse {
     throw new Error(INVALID_SEARCH_RESPONSE_MESSAGE);
   }
 
+  const normalizedResults = payload.results.map((result) => normalizeSearchResult(result));
+  requireFiniteNumber(payload.meta.resultCount);
+
   return {
     queryText: requireString(payload.queryText),
     appliedFilter: {
       sqlFilter: requireStringValue(payload.appliedFilter.sqlFilter),
       summary: requireString(payload.appliedFilter.summary),
     },
-    results: payload.results.map((result) => normalizeSearchResult(result)),
+    results: normalizedResults,
     meta: {
       tookMs: requireFiniteNumber(payload.meta.tookMs),
-      resultCount: requireFiniteNumber(payload.meta.resultCount),
+      resultCount: normalizedResults.length,
       queryMode: requireString(payload.meta.queryMode),
     },
   };

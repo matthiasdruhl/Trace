@@ -1,4 +1,12 @@
-import type { ApiSearchRequest, SearchFilters, SearchResult } from "./types";
+import type {
+  ApiSearchRequest,
+  HandoffSummary,
+  InvestigationWorkspaceModel,
+  SearchFilters,
+  SearchResponse,
+  SearchResult,
+  SubmittedSearchContext,
+} from "./types";
 
 type DateBoundary = "start" | "end";
 
@@ -13,6 +21,15 @@ const DATE_INPUT_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 export function trimOrUndefined(value: string): string | undefined {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+export function normalizeSearchFilters(filters: SearchFilters): SearchFilters {
+  return {
+    cityCode: trimOrUndefined(filters.cityCode ?? "") ?? "",
+    docType: trimOrUndefined(filters.docType ?? "") ?? "",
+    startDate: trimOrUndefined(filters.startDate ?? "") ?? "",
+    endDate: trimOrUndefined(filters.endDate ?? "") ?? "",
+  };
 }
 
 function padDatePart(value: number, width = 2): string {
@@ -68,10 +85,11 @@ export function buildSearchRequest(
   filters: SearchFilters,
 ): ApiSearchRequest {
   const normalizedQuery = queryText.trim();
-  const cityCode = trimOrUndefined(filters.cityCode ?? "");
-  const docType = trimOrUndefined(filters.docType ?? "");
-  const startDate = trimOrUndefined(filters.startDate ?? "");
-  const endDate = trimOrUndefined(filters.endDate ?? "");
+  const normalizedFilters = normalizeSearchFilters(filters);
+  const cityCode = trimOrUndefined(normalizedFilters.cityCode ?? "");
+  const docType = trimOrUndefined(normalizedFilters.docType ?? "");
+  const startDate = trimOrUndefined(normalizedFilters.startDate ?? "");
+  const endDate = trimOrUndefined(normalizedFilters.endDate ?? "");
 
   const apiFilters: NonNullable<ApiSearchRequest["filters"]> = {};
 
@@ -176,6 +194,25 @@ export function summarizeActiveFilters(filters: SearchFilters): string {
   return parts.length > 0 ? parts.join(" | ") : "No structured filters applied";
 }
 
+export function formatTimeWindow(filters: SearchFilters): string {
+  const startDate = trimOrUndefined(filters.startDate ?? "");
+  const endDate = trimOrUndefined(filters.endDate ?? "");
+
+  if (startDate && endDate) {
+    return `${startDate} to ${endDate}`;
+  }
+
+  if (startDate) {
+    return `From ${startDate}`;
+  }
+
+  if (endDate) {
+    return `Through ${endDate}`;
+  }
+
+  return "Open scope";
+}
+
 export function buildExcerpt(result: SearchResult): string {
   const text = result.text_content?.trim();
   if (!text) {
@@ -183,4 +220,103 @@ export function buildExcerpt(result: SearchResult): string {
   }
 
   return text.length > 240 ? `${text.slice(0, 237).trimEnd()}...` : text;
+}
+
+export function buildFilterMatchChips(
+  result: SearchResult,
+  filters: SearchFilters,
+): string[] {
+  const chips: string[] = [];
+  const cityCode = trimOrUndefined(filters.cityCode ?? "");
+  const docType = trimOrUndefined(filters.docType ?? "");
+  const startDate = trimOrUndefined(filters.startDate ?? "");
+  const endDate = trimOrUndefined(filters.endDate ?? "");
+
+  if (cityCode && result.city_code.toUpperCase() === cityCode.toUpperCase()) {
+    chips.push("City scope match");
+  }
+
+  if (docType && result.doc_type === docType) {
+    chips.push("Document type scope match");
+  }
+
+  if (startDate || endDate) {
+    const resultTimestamp = Date.parse(result.timestamp);
+    const startTimestamp = startDate
+      ? Date.parse(formatDateBoundaryTimestamp(startDate, "start") ?? "")
+      : null;
+    const endTimestamp = endDate
+      ? Date.parse(formatDateBoundaryTimestamp(endDate, "end") ?? "")
+      : null;
+
+    if (
+      Number.isFinite(resultTimestamp) &&
+      (startTimestamp === null || resultTimestamp >= startTimestamp) &&
+      (endTimestamp === null || resultTimestamp <= endTimestamp)
+    ) {
+      chips.push("Within requested date range");
+    }
+  }
+
+  return chips;
+}
+
+export function buildPrimaryEvidenceLabel(result: SearchResult): string {
+  return `${result.incident_id} · ${result.doc_type} · ${result.city_code} · ${formatTimestamp(result.timestamp)}`;
+}
+
+export function buildHandoffSummary(
+  queryText: string,
+  activeScope: string,
+  topLead: SearchResult,
+  supportingResults: SearchResult[],
+): HandoffSummary {
+  const supportingCount = supportingResults.length;
+  const supportingLabel =
+    supportingCount > 0
+      ? ` with ${supportingCount} supporting record${supportingCount === 1 ? "" : "s"}`
+      : "";
+
+  return {
+    goal: queryText.trim(),
+    appliedScope: activeScope,
+    primaryEvidence: buildPrimaryEvidenceLabel(topLead),
+    suggestedHandoff: `Review incident ${topLead.incident_id}${supportingLabel} in this scope before escalation.`,
+  };
+}
+
+export function deriveInvestigationWorkspaceModel(
+  queryText: string,
+  filters: SearchFilters,
+  response: SearchResponse | null,
+  submittedSearchContext: SubmittedSearchContext | null,
+): InvestigationWorkspaceModel {
+  const activeFilters = submittedSearchContext?.filters ?? filters;
+  const activeQueryText = submittedSearchContext?.queryText ?? queryText;
+  const activeScope =
+    response?.appliedFilter.summary || summarizeActiveFilters(activeFilters);
+  const results = response?.results ?? [];
+  const topLead = results[0] ?? null;
+  const supportingResults = topLead ? results.slice(1) : [];
+
+  return {
+    investigationRequest:
+      response?.queryText ?? trimOrUndefined(activeQueryText) ?? "No investigation request yet",
+    activeScope,
+    timeWindow: formatTimeWindow(activeFilters),
+    queryModeLabel: response ? `${response.meta.queryMode} retrieval` : "Awaiting query",
+    resultCount: response?.meta.resultCount ?? 0,
+    latencyLabel: response ? formatLatency(response.meta.tookMs) : "Timing unavailable",
+    submittedFilters: activeFilters,
+    topLead,
+    supportingResults,
+    handoffSummary: topLead
+      ? buildHandoffSummary(
+          response?.queryText ?? activeQueryText,
+          activeScope,
+          topLead,
+          supportingResults,
+        )
+      : null,
+  };
 }
