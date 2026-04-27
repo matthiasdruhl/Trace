@@ -1,10 +1,10 @@
 # Trace project state
 
-Last updated: 2026-04-24
+Last updated: 2026-04-26
 
 ## Summary
 
-Trace is no longer just a planning repository. The codebase currently contains a working Rust Lambda search service, a working MCP bridge, a synthetic data generation pipeline, an AWS SAM deployment template, and a deployed proof-path runner with targeted tests.
+Trace is no longer just a planning repository. The codebase currently contains a working Rust Lambda search service, a working MCP bridge, a browser-facing production app, a synthetic data generation pipeline, an AWS SAM deployment template, and a deployed proof-path runner with targeted tests.
 
 The active code path supports:
 
@@ -12,11 +12,13 @@ The active code path supports:
 - constrained metadata filtering applied before vector search
 - optional API-key enforcement for the HTTP API
 - MCP-mediated natural-language search through embeddings
+- a browser-facing investigation workflow with structured filters, curated cases,
+  surfaced evidence, and deterministic handoff output
 
 Against the active backlog in `docs/NEXT_STEPS.md`, the current status is:
 
 - step 1 (clarify the product story everywhere): complete
-- step 2 (build a strong demo surface): not implemented yet
+- step 2 (build a strong demo surface): complete
 - step 3 (create a side-by-side proof of value): not implemented yet
 - step 4 (package benchmark and evaluation evidence for judges): partially complete
 - step 5 (tighten deployment and operator documentation): partially complete
@@ -58,6 +60,25 @@ Current product implication:
 
 - the MCP bridge provides the opening for an AI-native investigation flow
 - today it is still exposed mostly as retrieval plumbing rather than a full investigation handoff experience
+
+### Production web app
+
+Implemented across `demo-ui/`, `mcp-bridge/`, and `template.yaml`:
+
+- a browser-facing React/Vite investigation workspace
+- compact top bar and two-column operator layout on desktop
+- curated investigation cases with surfaced subtitles
+- structured filters tied to submitted search scope
+- a featured top-lead card plus supporting evidence ladder
+- deterministic handoff panel and reasoning strip
+- product-specific loading, error, and no-result states
+- a public app API exposed under `/api/*` for search, cases, and health
+
+Current product implication:
+
+- Trace now has a visible demo surface rather than just backend retrieval
+- the main product story is legible as an investigation workflow, not only as
+  search infrastructure
 
 ### Data generation
 
@@ -136,6 +157,7 @@ Implemented in `scripts/prove_deployed_path.py`, `scripts/proof_mcp_stdio.py`, `
 Current deployed proof status:
 
 - the first successful eval-stack proof run completed at `artifacts/validation-runs/20260423T233528Z`
+- the latest successful full eval-stack proof run completed at `artifacts/validation-runs/20260427T040405Z`
 - that run used stack `trace-eval`, dataset `s3://trace-vault/trace/eval/lance`, region `us-east-1`, and model `text-embedding-3-small`
 - all proof cases in that run passed for both direct HTTP and MCP traversal
 - representative scrubbed stable fixtures are now committed under `fixtures/deployed/examples/` for `unfiltered-demo` and `filtered-nyc-safety`
@@ -154,26 +176,30 @@ Important boundary on those claims:
 Implemented in `template.yaml`:
 
 - ARM64 Lambda packaging via SAM and `cargo-lambda`
-- HTTP API `POST /search`
+- CloudFront-backed production app delivery
+- static frontend bucket for `demo-ui/dist`
+- public app API under `/api/*`
+- retained Rust search endpoint `POST /search` behind the app API
 - CORS configuration
 - S3 read permissions for the configured dataset prefix (parameters `TraceDataBucketName` / `TraceLancePrefix`; stack output `TraceDatasetS3Uri`)
 - optional Secrets Manager-backed API key injection
-- stack outputs for `HttpApiUrl`, `SearchUrl`, `TraceDatasetS3Uri`, and `TraceSearchFunctionArn`
+- stack outputs for `AppUrl`, `AppApiBaseUrl`, `FrontendBucketName`,
+  `TraceAppDistributionId`, `HttpApiUrl`, `SearchUrl`, `TraceDatasetS3Uri`,
+  and `TraceSearchFunctionArn`
 
 Deployed in AWS (`us-east-1`):
 
 - `trace-smoke` points at `s3://trace-vault/uber_audit.lance`
 - `trace-eval` points at `s3://trace-vault/trace/eval/lance`
 - `trace-smoke` search URL: `https://u73d8vk2yl.execute-api.us-east-1.amazonaws.com/search`
-- `trace-eval` search URL: `https://kp2kjz4fkg.execute-api.us-east-1.amazonaws.com/search`
+- `trace-eval` search URL: `https://kqsqrljj11.execute-api.us-east-1.amazonaws.com/search`
+- `trace-eval` app URL: `https://d16y21pmy9pe9s.cloudfront.net`
 
 ## What is not fully done
 
-- There is no user-facing web application in this repository
-- There is not yet a single shared or production-facing stack beyond the current `trace-smoke` and `trace-eval` layout
 - There are not yet benchmark artifacts for latency, memory footprint, or cost-per-query
 - There is not yet a completed deployment history for smoke/eval stacks, although `docs/DEPLOYMENT_RUNBOOK.md` now documents that workflow
-- There is not yet a visible explanation, interpreted-filter, or investigation-summary layer that turns retrieval into a clearly AI-native workflow
+- There is not yet a side-by-side proof artifact that shows Trace outperforming weaker baselines in a judge-friendly visual form
 
 ## Current repo guidance
 

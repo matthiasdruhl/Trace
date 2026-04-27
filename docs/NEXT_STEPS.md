@@ -98,14 +98,14 @@ Recommended output:
 
 ## 2. Build a strong demo surface
 
-Status: `Partially complete`
+Status: `Complete`
 
 Why this matters:
 
 - judges will score what they can understand quickly
 - a polished front door can improve clarity, execution, and polish more than more hidden backend work
 
-What to do:
+What shipped:
 
 - keep the existing React app, but redesign it from a generic search page into an investigation workspace
 - reduce the oversized marketing/hero treatment and move faster into the active workflow
@@ -140,6 +140,12 @@ Recommended output:
 - baseline explanation or evidence-handoff experience integrated into the main flow
 - one signature visual or interaction that makes the demo more memorable
 - stable screenshots or short recordings for fallback use
+
+Current note:
+
+- the baseline Step 2 redesign is now in place
+- the next highest-value frontend work is proof-of-value packaging, pitch-ready
+  polish, and any stronger follow-on trust or explainability layer
 
 ## 3. Create a side-by-side proof of value
 
