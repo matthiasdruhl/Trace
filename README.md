@@ -84,6 +84,9 @@ existing search stack:
   public app API Lambda runtime.
 - The public app API is exposed under `/api/*` and owns embedding generation,
   typed filter handling, and result shaping for the frontend.
+- The app API now resolves its OpenAI and optional Trace API secrets at Lambda
+  runtime from Secrets Manager metadata env vars rather than asking
+  CloudFormation to inject plaintext secrets directly.
 - The Rust Lambda in `lambda-engine/` remains the search engine behind
   `POST /search`.
 
@@ -120,8 +123,8 @@ npm run dev
 
 3. For app API changes, validate the Node code and the deploy packaging path
    separately. `sam build` now packages the app API directly from
-   `mcp-bridge/src/app-api.ts`, but AWS SAM's `NodejsNpmEsbuildBuilder`
-   requires `esbuild` on the host machine first:
+   `mcp-bridge/src/app-api.ts` as a CommonJS Lambda bundle, but AWS SAM's
+   `NodejsNpmEsbuildBuilder` requires `esbuild` on the host machine first:
 
 ```bash
 npm install --global esbuild
@@ -187,6 +190,8 @@ infra but no updated frontend artifact.
 For the current one-command PowerShell deploy helpers and the web app update
 workflow, see
 [docs/WEB_APP_DEPLOYMENT.md](C:/Users/matth/Projects/Trace/Trace/docs/WEB_APP_DEPLOYMENT.md).
+That guide also documents the current plain-text OpenAI secret convention and
+the built-in post-deploy `/api/search` smoke check.
 
 ## Quick start
 
@@ -305,9 +310,13 @@ When deployed with SAM (`template.yaml`), **`TraceDataBucketName`** and **`Trace
 Important MCP bridge environment variables:
 
 - `TRACE_SEARCH_URL`: deployed HTTP search endpoint
-- `OPENAI_API_KEY`: required unless `USE_MOCK_EMBEDDINGS=true`
+- `OPENAI_API_KEY`: required for direct/local embedding calls unless `USE_MOCK_EMBEDDINGS=true`; the deployed app API can hydrate this at runtime from `OPENAI_API_KEY_SECRET_REF`
+- `OPENAI_API_KEY_SECRET_REF`: deployed app API path for runtime secret lookup
+- `OPENAI_API_KEY_SECRET_JSON_KEY`: optional JSON field name for runtime secret lookup; keep blank for the current plaintext secret convention
 - `OPENAI_EMBEDDING_MODEL`: defaults to `text-embedding-3-small`
 - `TRACE_QUERY_VECTOR_DIM`: optional cross-check against the embedding model dimension
+- `TRACE_API_KEY_SECRET_REF`: optional deployed app API path for runtime Trace API key lookup
+- `TRACE_API_KEY_SECRET_JSON_KEY`: optional JSON field name for runtime Trace API key lookup
 - `TRACE_MCP_MOCK`: return mock search responses instead of calling the endpoint
 - `USE_MOCK_EMBEDDINGS`: generate zero-vectors for local testing only
 

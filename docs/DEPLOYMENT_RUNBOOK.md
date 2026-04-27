@@ -68,7 +68,6 @@ In a normal PowerShell session on the deployment machine, confirm:
 sam --version
 cargo lambda --version
 aws sts get-caller-identity
-echo $env:OPENAI_API_KEY.Length
 ```
 
 Expected results:
@@ -76,13 +75,14 @@ Expected results:
 - `sam` resolves successfully
 - `cargo lambda` resolves successfully
 - `aws sts get-caller-identity` returns the active AWS identity
-- `OPENAI_API_KEY` length is non-zero
 
-If the OpenAI key is not set persistently:
-
-```powershell
-[System.Environment]::SetEnvironmentVariable("OPENAI_API_KEY", "your_actual_key_here", "User")
-```
+For the browser app deployment path described in
+[docs/WEB_APP_DEPLOYMENT.md](C:/Users/matth/Projects/Trace/Trace/docs/WEB_APP_DEPLOYMENT.md),
+the deployed Node app API now reads the OpenAI key from Secrets Manager at
+runtime via `OPENAI_API_KEY_SECRET_REF`. A local `OPENAI_API_KEY` shell
+variable is still required for dataset seeding, local embedding-backed tests,
+and proof tooling, but it is no longer a prerequisite for a normal stack
+update by itself.
 
 If AWS credentials are not configured persistently, use either:
 

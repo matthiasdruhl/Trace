@@ -14,6 +14,7 @@ import {
   safePreview,
   truncate,
 } from "./common.js";
+import { hydrateRuntimeSecrets, type SecretClientLike } from "./secrets.js";
 import { callSearch } from "./search-client.js";
 import {
   AppSearchResponse,
@@ -48,6 +49,7 @@ type AppApiDependencies = {
   env?: NodeJS.ProcessEnv;
   fetchImpl?: FetchLike;
   requestIdFactory?: () => string;
+  secretClient?: SecretClientLike;
 };
 
 type SearchRequestBody = {
@@ -344,6 +346,17 @@ async function handleSearch(
 
 export function createAppApiHandler(deps: AppApiDependencies = {}) {
   const env = deps.env ?? process.env;
+  let runtimeEnvPromise: Promise<NodeJS.ProcessEnv> | undefined;
+
+  function resolveRuntimeEnv(): Promise<NodeJS.ProcessEnv> {
+    if (!runtimeEnvPromise) {
+      runtimeEnvPromise = hydrateRuntimeSecrets(env, {
+        secretClient: deps.secretClient,
+      });
+    }
+    return runtimeEnvPromise;
+  }
+
   return async function handler(
     event: ApiGatewayLikeEvent
   ): Promise<ApiGatewayLikeResult> {
@@ -353,7 +366,22 @@ export function createAppApiHandler(deps: AppApiDependencies = {}) {
       const path = requestPath(event);
 
       if (method === "GET" && path === "/api/health") {
-        const payload = buildHealthPayload(env);
+        const healthEnv = await resolveRuntimeEnv().catch((error) => {
+          const message =
+            error instanceof Error
+              ? truncate(normalizeForPreview(error.message), FATAL_ERROR_MESSAGE_CHARS)
+              : truncate(normalizeForPreview(String(error)), FATAL_ERROR_MESSAGE_CHARS);
+          console.error(
+            "[App API Error]",
+            JSON.stringify({
+              kind: "health_secret_resolution_failure",
+              requestId,
+              message,
+            })
+          );
+          return env;
+        });
+        const payload = buildHealthPayload(healthEnv);
         return jsonResponse(payload.ready ? 200 : 503, requestId, payload);
       }
 
@@ -364,7 +392,8 @@ export function createAppApiHandler(deps: AppApiDependencies = {}) {
       }
 
       if (method === "POST" && path === "/api/search") {
-        return await handleSearch(event, { ...deps, env }, requestId);
+        const runtimeEnv = await resolveRuntimeEnv();
+        return await handleSearch(event, { ...deps, env: runtimeEnv }, requestId);
       }
 
       if (path === "/api/search" || path === "/api/cases" || path === "/api/health") {

@@ -54,6 +54,78 @@ test("GET /api/health reports readiness from env configuration", async () => {
   });
 });
 
+test("GET /api/health resolves OPENAI_API_KEY from Secrets Manager metadata", async () => {
+  const handler = createAppApiHandler({
+    env: {
+      TRACE_SEARCH_URL: "https://trace.example/search",
+      OPENAI_EMBEDDING_MODEL: "text-embedding-3-small",
+      OPENAI_API_KEY_SECRET_REF: "trace/openai-api-key",
+      OPENAI_API_KEY_SECRET_JSON_KEY: "__EMPTY__",
+    },
+    requestIdFactory: () => "req-health-secret",
+    secretClient: {
+      async send(command) {
+        const input = command.input as { SecretId?: string };
+        assert.equal(input.SecretId, "trace/openai-api-key");
+        return {
+          SecretString: "secret-from-manager",
+        };
+      },
+    },
+  });
+
+  const response = await handler({
+    rawPath: "/api/health",
+    requestContext: { http: { method: "GET", path: "/api/health" } },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(JSON.parse(response.body), {
+    ok: true,
+    service: "trace-app-api",
+    ready: true,
+    checks: {
+      traceSearchUrl: true,
+      embeddingsConfigured: true,
+    },
+  });
+});
+
+test("GET /api/health degrades to 503 when runtime secret resolution fails", async () => {
+  const handler = createAppApiHandler({
+    env: {
+      TRACE_SEARCH_URL: "https://trace.example/search",
+      OPENAI_EMBEDDING_MODEL: "text-embedding-3-small",
+      OPENAI_API_KEY_SECRET_REF: "trace/openai-api-key",
+      OPENAI_API_KEY_SECRET_JSON_KEY: "openaiApiKey",
+    },
+    requestIdFactory: () => "req-health-secret-failure",
+    secretClient: {
+      async send() {
+        return {
+          SecretString: "sk-plaintext",
+        };
+      },
+    },
+  });
+
+  const response = await handler({
+    rawPath: "/api/health",
+    requestContext: { http: { method: "GET", path: "/api/health" } },
+  });
+
+  assert.equal(response.statusCode, 503);
+  assert.deepEqual(JSON.parse(response.body), {
+    ok: false,
+    service: "trace-app-api",
+    ready: false,
+    checks: {
+      traceSearchUrl: true,
+      embeddingsConfigured: false,
+    },
+  });
+});
+
 test("POST /api/search validates unsupported raw sql_filter input", async () => {
   const handler = createAppApiHandler({
     env: baseEnv,
@@ -163,6 +235,41 @@ test("POST /api/search rejects unsupported filter keys before downstream calls",
     error: {
       code: "INVALID_FILTER",
       message: "filters.incidentId is not supported.",
+    },
+  });
+});
+
+test("POST /api/search returns a controlled 500 when runtime secret resolution fails", async () => {
+  const handler = createAppApiHandler({
+    env: {
+      TRACE_SEARCH_URL: "https://trace.example/search",
+      OPENAI_EMBEDDING_MODEL: "text-embedding-3-small",
+      OPENAI_API_KEY_SECRET_REF: "trace/openai-api-key",
+      OPENAI_API_KEY_SECRET_JSON_KEY: "openaiApiKey",
+    },
+    requestIdFactory: () => "req-search-secret-failure",
+    secretClient: {
+      async send() {
+        return {
+          SecretString: "sk-plaintext",
+        };
+      },
+    },
+  });
+
+  const response = await handler({
+    rawPath: "/api/search",
+    requestContext: { http: { method: "POST", path: "/api/search" } },
+    body: JSON.stringify({
+      queryText: "find audits",
+    }),
+  });
+
+  assert.equal(response.statusCode, 500);
+  assert.deepEqual(JSON.parse(response.body), {
+    error: {
+      code: "INTERNAL",
+      message: "Internal server error.",
     },
   });
 });

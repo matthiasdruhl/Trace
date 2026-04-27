@@ -239,6 +239,7 @@ jobs:
         run: |
           set -euo pipefail
 
+          empty_parameter_sentinel="__EMPTY__"
           parameter_overrides=()
 
           add_override() {
@@ -249,12 +250,22 @@ jobs:
             fi
           }
 
+          add_secret_override() {
+            local key="$1"
+            local value="$2"
+            if [[ -n "${value}" ]]; then
+              parameter_overrides+=("${key}=${value}")
+            else
+              parameter_overrides+=("${key}=${empty_parameter_sentinel}")
+            fi
+          }
+
           add_override "TraceDataBucketName" "${TRACE_DATA_BUCKET_NAME}"
           add_override "TraceLancePrefix" "${TRACE_LANCE_PREFIX}"
-          add_override "TraceApiKeySecretRef" "${TRACE_API_KEY_SECRET_REF}"
-          add_override "TraceApiKeySecretJsonKey" "${TRACE_API_KEY_SECRET_JSON_KEY}"
-          add_override "OpenAiApiKeySecretRef" "${OPENAI_API_KEY_SECRET_REF}"
-          add_override "OpenAiApiKeySecretJsonKey" "${OPENAI_API_KEY_SECRET_JSON_KEY}"
+          add_secret_override "TraceApiKeySecretRef" "${TRACE_API_KEY_SECRET_REF}"
+          add_secret_override "TraceApiKeySecretJsonKey" "${TRACE_API_KEY_SECRET_JSON_KEY}"
+          add_secret_override "OpenAiApiKeySecretRef" "${OPENAI_API_KEY_SECRET_REF}"
+          add_secret_override "OpenAiApiKeySecretJsonKey" "${OPENAI_API_KEY_SECRET_JSON_KEY}"
           add_override "OpenAiEmbeddingModel" "${OPENAI_EMBEDDING_MODEL}"
 
           deploy_cmd=(
@@ -309,6 +320,7 @@ jobs:
             echo "APP_URL=${app_url}"
             echo "APP_API_BASE_URL=${app_api_base_url}"
             echo "APP_HEALTH_URL=${app_api_base_url%/}/api/health"
+            echo "APP_SEARCH_URL=${app_api_base_url%/}/api/search"
             echo "FRONTEND_BUCKET_NAME=${frontend_bucket_name}"
             echo "TRACE_APP_DISTRIBUTION_ID=${distribution_id}"
           } >> "${GITHUB_ENV}"
@@ -387,8 +399,42 @@ jobs:
             return 1
           }
 
+          probe_search() {
+            local url="$1"
+            local response_file
+            response_file="$(mktemp)"
+            local request_body='{"queryText":"recent vehicle inspection audit with overdue paperwork","filters":{},"limit":3}'
+
+            for attempt in {1..10}; do
+              status_code="$(
+                curl --location --silent --show-error \
+                  --output "${response_file}" \
+                  --write-out '%{http_code}' \
+                  --request POST \
+                  --header 'content-type: application/json' \
+                  --data "${request_body}" \
+                  "${url}" || true
+              )"
+
+              if [[ "${status_code}" == "200" ]] && grep -q '"results"' "${response_file}" && grep -q '"meta"' "${response_file}"; then
+                echo "API search check passed on attempt ${attempt}: ${url}"
+                rm -f "${response_file}"
+                return 0
+              fi
+
+              echo "Attempt ${attempt}: API search returned HTTP ${status_code}." >&2
+              sleep 15
+            done
+
+            echo "API search smoke check failed for ${url}. Last response body:" >&2
+            cat "${response_file}" >&2
+            rm -f "${response_file}"
+            return 1
+          }
+
           probe_url "Frontend root" "${APP_URL}" "<html"
           probe_url "API health" "${APP_HEALTH_URL}"
+          probe_search "${APP_SEARCH_URL}"
 
       - name: Write deployment summary
         if: always()

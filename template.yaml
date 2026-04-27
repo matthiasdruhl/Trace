@@ -52,10 +52,10 @@ Parameters:
     Description: Embedding model used by the Node app API and MCP bridge shared search path.
 
 Conditions:
-  HasTraceApiKeySecret: !Not [!Equals [!Ref TraceApiKeySecretRef, '']]
-  TraceApiKeySecretHasJsonKey: !Not [!Equals [!Ref TraceApiKeySecretJsonKey, '']]
-  HasOpenAiApiKeySecret: !Not [!Equals [!Ref OpenAiApiKeySecretRef, '']]
-  OpenAiApiKeySecretHasJsonKey: !Not [!Equals [!Ref OpenAiApiKeySecretJsonKey, '']]
+  HasTraceApiKeySecret: !Not [!Or [!Equals [!Ref TraceApiKeySecretRef, ''], !Equals [!Ref TraceApiKeySecretRef, '__EMPTY__']]]
+  TraceApiKeySecretHasJsonKey: !Not [!Or [!Equals [!Ref TraceApiKeySecretJsonKey, ''], !Equals [!Ref TraceApiKeySecretJsonKey, '__EMPTY__']]]
+  HasOpenAiApiKeySecret: !Not [!Or [!Equals [!Ref OpenAiApiKeySecretRef, ''], !Equals [!Ref OpenAiApiKeySecretRef, '__EMPTY__']]]
+  OpenAiApiKeySecretHasJsonKey: !Not [!Or [!Equals [!Ref OpenAiApiKeySecretJsonKey, ''], !Equals [!Ref OpenAiApiKeySecretJsonKey, '__EMPTY__']]]
   # Empty refs split to a first segment of '', so this remains false in IAM-only mode without
   # requiring an Fn::If inside Fn::Equals (which cfn-lint rejects here).
   TraceApiKeySecretIsArn:
@@ -111,7 +111,7 @@ Resources:
                   - SecretRef: !Ref TraceApiKeySecretRef
                     JsonKey: !Ref TraceApiKeySecretJsonKey
               - !Sub
-                  - '{{{{resolve:secretsmanager:${SecretRef}:SecretString}}}}'
+                  - '{{{{resolve:secretsmanager:${SecretRef}}}}'
                   - SecretRef: !Ref TraceApiKeySecretRef
             - ''
       Policies:
@@ -158,21 +158,19 @@ Resources:
             Path: /search
             Method: POST
 
-  TraceAppApiFunction:
+  TraceAppApiFunctionV2:
     Type: AWS::Serverless::Function
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
         EntryPoints:
           - src/app-api.ts
-        Format: esm
+        Format: cjs
         Minify: false
-        OutExtension:
-          - .js=.mjs
         Sourcemap: true
         Target: es2022
     Properties:
-      FunctionName: !Sub '${AWS::StackName}-trace-app-api'
+      FunctionName: !Sub '${AWS::StackName}-trace-app-api-v2'
       CodeUri: mcp-bridge
       Handler: app-api.handler
       Runtime: nodejs22.x
@@ -180,30 +178,22 @@ Resources:
         Variables:
           NODE_ENV: production
           NODE_OPTIONS: --enable-source-maps
-          OPENAI_API_KEY: !If
+          OPENAI_API_KEY_SECRET_REF: !If
             - HasOpenAiApiKeySecret
-            - !If
-              - OpenAiApiKeySecretHasJsonKey
-              - !Sub
-                  - '{{{{resolve:secretsmanager:${SecretRef}:SecretString:${JsonKey}}}}}'
-                  - SecretRef: !Ref OpenAiApiKeySecretRef
-                    JsonKey: !Ref OpenAiApiKeySecretJsonKey
-              - !Sub
-                  - '{{{{resolve:secretsmanager:${SecretRef}:SecretString}}}}'
-                  - SecretRef: !Ref OpenAiApiKeySecretRef
+            - !Ref OpenAiApiKeySecretRef
+            - ''
+          OPENAI_API_KEY_SECRET_JSON_KEY: !If
+            - OpenAiApiKeySecretHasJsonKey
+            - !Ref OpenAiApiKeySecretJsonKey
             - ''
           OPENAI_EMBEDDING_MODEL: !Ref OpenAiEmbeddingModel
-          TRACE_API_KEY: !If
+          TRACE_API_KEY_SECRET_REF: !If
             - HasTraceApiKeySecret
-            - !If
-              - TraceApiKeySecretHasJsonKey
-              - !Sub
-                  - '{{{{resolve:secretsmanager:${SecretRef}:SecretString:${JsonKey}}}}}'
-                  - SecretRef: !Ref TraceApiKeySecretRef
-                    JsonKey: !Ref TraceApiKeySecretJsonKey
-              - !Sub
-                  - '{{{{resolve:secretsmanager:${SecretRef}:SecretString}}}}'
-                  - SecretRef: !Ref TraceApiKeySecretRef
+            - !Ref TraceApiKeySecretRef
+            - ''
+          TRACE_API_KEY_SECRET_JSON_KEY: !If
+            - TraceApiKeySecretHasJsonKey
+            - !Ref TraceApiKeySecretJsonKey
             - ''
           TRACE_APP_ENABLE_FIXTURE_MODE: 'false'
           TRACE_SEARCH_URL: !Sub 'https://${TraceHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/search'
@@ -241,7 +231,7 @@ Resources:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
-      FunctionName: !Ref TraceAppApiFunction
+      FunctionName: !Ref TraceAppApiFunctionV2
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${TraceHttpApi}/*/*/api/*'
 
@@ -250,7 +240,7 @@ Resources:
     Properties:
       ApiId: !Ref TraceHttpApi
       IntegrationType: AWS_PROXY
-      IntegrationUri: !GetAtt TraceAppApiFunction.Arn
+      IntegrationUri: !GetAtt TraceAppApiFunctionV2.Arn
       PayloadFormatVersion: '2.0'
 
   TraceAppSearchRoute:
@@ -462,4 +452,4 @@ Outputs:
     Value: !Ref TraceAppDistribution
   TraceAppApiFunctionArn:
     Description: Lambda function ARN for the Node app API
-    Value: !GetAtt TraceAppApiFunction.Arn
+    Value: !GetAtt TraceAppApiFunctionV2.Arn
