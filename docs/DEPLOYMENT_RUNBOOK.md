@@ -1,6 +1,6 @@
 # Trace Deployment Runbook
 
-Last updated: 2026-04-24
+Last updated: 2026-04-26
 
 This runbook is the end-to-end operator guide for deploying Trace from this
 repository. It covers:
@@ -11,6 +11,17 @@ repository. It covers:
 - first deployment layout for smoke and eval stacks
 - deployed proof validation
 - rollback
+
+Important scope note:
+
+- this runbook is primarily the smoke/eval search-stack and proof-path guide
+- the browser-facing production app deploy flow now also includes frontend
+  publishing and CloudFront invalidation, which are documented in
+  `docs/WEB_APP_DEPLOYMENT.md`
+- use this runbook for dataset generation, stack deployment, proof validation,
+  and rollback of the search/eval environments
+- use the web app deployment guide when you need the current app API +
+  frontend publish flow for the production demo surface
 
 This document is written for the current Trace setup:
 
@@ -25,8 +36,9 @@ Current deployed state:
 - eval stack: `trace-eval`
 - region: `us-east-1`
 - smoke search URL: `https://u73d8vk2yl.execute-api.us-east-1.amazonaws.com/search`
-- eval search URL: `https://kp2kjz4fkg.execute-api.us-east-1.amazonaws.com/search`
-- first successful eval proof run: `artifacts/validation-runs/20260423T233528Z`
+- eval search URL: `https://kqsqrljj11.execute-api.us-east-1.amazonaws.com/search`
+- eval app URL: `https://d16y21pmy9pe9s.cloudfront.net`
+- latest successful full eval proof run: `artifacts/validation-runs/20260427T040405Z`
 
 ## Recommended deployment layout
 
@@ -39,6 +51,14 @@ Use two stacks:
 
 Do not overwrite the smoke prefix in place. Keep `uber_audit.lance` untouched and
 deploy the eval dataset at `trace/eval/lance`.
+
+Current app note:
+
+- the production app introduced on the current branch is a broader deployment
+  shape than the earlier smoke/eval search-only stacks
+- that app path provisions CloudFront, a frontend bucket, and `/api/*` routes
+- this runbook remains the source of truth for smoke/eval retrieval validation,
+  not the only documentation for the browser app rollout
 
 ## Prerequisites
 
