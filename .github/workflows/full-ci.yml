@@ -57,7 +57,7 @@ jobs:
 
   frontend:
     name: Frontend app
-    if: ${{ inputs.run_frontend != false && hashFiles('demo-ui/package.json') != '' }}
+    if: ${{ inputs.run_frontend != false }}
     runs-on: ubuntu-latest
     defaults:
       run:
