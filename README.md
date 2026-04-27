@@ -184,6 +184,10 @@ aws cloudfront create-invalidation --distribution-id <distribution-id> --paths "
 If you skip the sync and invalidation step, the deployed stack has working
 infra but no updated frontend artifact.
 
+For the current one-command PowerShell deploy helpers and the web app update
+workflow, see
+[docs/WEB_APP_DEPLOYMENT.md](C:/Users/matth/Projects/Trace/Trace/docs/WEB_APP_DEPLOYMENT.md).
+
 ## Quick start
 
 ### 1. Seed a local dataset
@@ -341,7 +345,7 @@ Current status:
 - `docs/COMPETITION_STRATEGY.md`: rubric-optimized plan for maximizing Handshake x OpenAI Codex Creator Challenge scoring
 - `docs/DATA_SPEC.md`: synthetic dataset schema and seed script behavior
 - `docs/DEMO_PLAN.md`: recommended live-demo structure, memorable queries, and proof points
-- `docs/DEPLOYMENT_RUNBOOK.md`: end-to-end deployment, upload, proof, and rollback checklist
+- `docs/DEPLOYMENT_RUNBOOK.md`: smoke/eval stack deployment, proof validation, and rollback checklist
 - `docs/PERSONA.md`: primary user persona and product framing anchor
 - `docs/deployed-proof-runbook.md`: how to run the deployed proof path and interpret artifacts
 - `docs/PITCH_VIDEO_PLAN.md`: three-minute finalist pitch structure and asset checklist
