@@ -1,6 +1,6 @@
 # Trace next steps
 
-Last updated: 2026-04-26
+Last updated: 2026-04-28
 
 This is the active prioritized backlog for Trace.
 
@@ -149,19 +149,20 @@ Current note:
 
 ## 3. Create a side-by-side proof of value
 
-Status: `Not implemented yet`
+Status: `Complete`
 
 Why this matters:
 
 - Trace becomes much more compelling when the advantage is shown instead of described
 - this is one of the best ways to boost usefulness and creativity scores
 
-What to do:
+What shipped:
 
-- create one example where keyword search fails but Trace succeeds
-- create one example where semantic-only retrieval is too broad but semantic plus metadata filtering succeeds
-- package both into a comparison artifact that can be reused in the README, demo, and pitch
-- include one brief explanation or handoff moment that shows the AI layer is part of the product, not hidden plumbing
+- a committed proof pack now exists under `docs/PROOF_OF_VALUE.md`
+- `insurance-keyword-gap` shows the insurance lapse workflow where `keyword_only` returned `0/3` labeled positives and Trace returned `3/3`
+- `insurance-scope-gap` shows the Chicago insurance workflow where semantic-only retrieval kept the right intent but only `3/5` top rows stayed in scope, while Trace kept `5/5`
+- the machine-readable snapshot now lives under `fixtures/eval/proof_of_value_snapshot.json`
+- each artifact includes a brief templated operator handoff note so the investigation layer is visible without implying a separate model-generated proof step
 
 Definition of done:
 

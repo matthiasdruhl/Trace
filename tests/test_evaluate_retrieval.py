@@ -343,6 +343,7 @@ class TestMetricsAndReports(unittest.TestCase):
                 cases_path=cases_path,
                 report_path=report_path,
                 summary_path=summary_path,
+                generated_at=datetime(2026, 4, 24, tzinfo=timezone.utc),
                 embedding_model="text-embedding-3-small",
                 preview_limit=2,
             )
@@ -664,6 +665,7 @@ class TestMetricsAndReports(unittest.TestCase):
                     cases_path=cases_path,
                     report_path=report_path,
                     summary_path=summary_path,
+                    generated_at=datetime(2026, 4, 24, tzinfo=timezone.utc),
                     embedding_model="text-embedding-3-small",
                     preview_limit=2,
                 )
@@ -677,6 +679,142 @@ class TestMetricsAndReports(unittest.TestCase):
             )
             assert fake_table.last_search is not None
             self.assertEqual(reported_candidate_window, fake_table.last_search.limit_value)
+
+    def test_run_evaluation_persists_semantic_only_vector_for_filtered_cases(self) -> None:
+        with repo_temp_dir() as td:
+            manifest_path = self._write_manifest(
+                td,
+                [
+                    {
+                        "incident_id": "chi-1",
+                        "text_content": "insurance lapse one",
+                        "doc_type": "Insurance_Lapse_Report",
+                        "city_code": "CHI-BACP",
+                        "timestamp": "2025-01-01T00:00:00Z",
+                    },
+                    {
+                        "incident_id": "chi-2",
+                        "text_content": "insurance lapse two",
+                        "doc_type": "Insurance_Lapse_Report",
+                        "city_code": "CHI-BACP",
+                        "timestamp": "2025-01-02T00:00:00Z",
+                    },
+                    {
+                        "incident_id": "nyc-1",
+                        "text_content": "out of scope row",
+                        "doc_type": "Insurance_Lapse_Report",
+                        "city_code": "NYC-TLC",
+                        "timestamp": "2025-01-03T00:00:00Z",
+                    },
+                ],
+            )
+            cases_path = td / "cases.json"
+            report_path = td / "artifacts" / "report.json"
+            summary_path = td / "artifacts" / "summary.md"
+            cases_path.write_text(
+                json.dumps(
+                    [
+                        {
+                            "id": "filtered-proof",
+                            "query": "insurance lapse",
+                            "sql_filter": "city_code = 'CHI-BACP' AND doc_type = 'Insurance_Lapse_Report'",
+                            "limit": 3,
+                            "relevant_incident_ids": ["chi-1", "chi-2"],
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            trace_execution = evaluate.SearchExecution(
+                rows=[
+                    {
+                        "incident_id": "chi-1",
+                        "doc_type": "Insurance_Lapse_Report",
+                        "city_code": "CHI-BACP",
+                        "timestamp": "2025-01-01T00:00:00Z",
+                    },
+                    {
+                        "incident_id": "chi-2",
+                        "doc_type": "Insurance_Lapse_Report",
+                        "city_code": "CHI-BACP",
+                        "timestamp": "2025-01-02T00:00:00Z",
+                    },
+                ]
+            )
+            semantic_only_execution = evaluate.SearchExecution(
+                rows=[
+                    {
+                        "incident_id": "nyc-1",
+                        "doc_type": "Insurance_Lapse_Report",
+                        "city_code": "NYC-TLC",
+                        "timestamp": "2025-01-03T00:00:00Z",
+                    },
+                    {
+                        "incident_id": "chi-1",
+                        "doc_type": "Insurance_Lapse_Report",
+                        "city_code": "CHI-BACP",
+                        "timestamp": "2025-01-01T00:00:00Z",
+                    },
+                    {
+                        "incident_id": "chi-2",
+                        "doc_type": "Insurance_Lapse_Report",
+                        "city_code": "CHI-BACP",
+                        "timestamp": "2025-01-02T00:00:00Z",
+                    },
+                ]
+            )
+
+            with (
+                mock.patch.object(
+                    evaluate.seed,
+                    "resolve_openai_api_key_or_exit",
+                    return_value="test-api-key",
+                ),
+                mock.patch.object(
+                    evaluate.seed,
+                    "generate_openai_embeddings",
+                    return_value=[evaluate.np.asarray([0.0], dtype=evaluate.np.float32)],
+                ),
+                mock.patch.object(
+                    evaluate,
+                    "load_table",
+                    return_value=object(),
+                ),
+                mock.patch.object(
+                    evaluate,
+                    "trace_prefilter_vector_search",
+                    return_value=trace_execution,
+                ),
+                mock.patch.object(
+                    evaluate,
+                    "vector_postfilter_search",
+                    return_value=trace_execution,
+                ),
+                mock.patch.object(
+                    evaluate,
+                    "semantic_only_vector_search",
+                    return_value=semantic_only_execution,
+                ),
+            ):
+                exit_code = evaluate.run_evaluation(
+                    manifest_path=manifest_path,
+                    cases_path=cases_path,
+                    report_path=report_path,
+                    summary_path=summary_path,
+                    generated_at=datetime(2026, 4, 24, tzinfo=timezone.utc),
+                    embedding_model="text-embedding-3-small",
+                    preview_limit=2,
+                )
+
+            self.assertEqual(exit_code, 0)
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            methods = report["cases"][0]["methods"]
+            self.assertIn(evaluate.METHOD_SEMANTIC_ONLY_VECTOR, methods)
+            self.assertEqual(
+                methods[evaluate.METHOD_SEMANTIC_ONLY_VECTOR]["returned_ids"],
+                ["nyc-1", "chi-1", "chi-2"],
+            )
 
     def test_run_evaluation_writes_report_and_summary(self) -> None:
         with repo_temp_dir() as td:
@@ -755,6 +893,7 @@ class TestMetricsAndReports(unittest.TestCase):
                     cases_path=cases_path,
                     report_path=report_path,
                     summary_path=summary_path,
+                    generated_at=datetime(2026, 4, 24, tzinfo=timezone.utc),
                     embedding_model="text-embedding-3-small",
                     preview_limit=2,
                 )

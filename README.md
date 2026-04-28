@@ -45,6 +45,22 @@ investigators start from a natural-language case request, tighten results to
 the jurisdiction, document class, and time window that matter, and move toward
 an explainable handoff instead of a generic search result page.
 
+## Proof Of Value
+
+The committed Step 3 proof pack lives in
+[docs/PROOF_OF_VALUE.md](C:/Users/matth/Projects/Trace/Trace/docs/PROOF_OF_VALUE.md).
+It packages two selected local comparison artifacts from the retrieval harness:
+
+- for the insurance lapse workflow, `keyword_only` returned `0/3` labeled positives while Trace returned `3/3`
+- for the Chicago insurance-scope workflow, semantic-only retrieval kept `3/3` labeled positives but only `3/5` top rows stayed in scope, while Trace kept `5/5` in scope
+
+Those two artifacts are the approved side-by-side comparisons for the README,
+demo, and pitch. They are local retrieval evidence from the current eval corpus,
+not proof of deployed-path equivalence or a broad benchmark. The same local
+report also evaluates `vector_postfilter`; on the current labeled corpus it
+matches `trace_prefilter_vector`, so the proof pack is intentionally showing two
+selected failure modes rather than claiming that every non-Trace baseline loses.
+
 ## At A Glance
 
 The current repository contains:
@@ -274,7 +290,8 @@ Current local status:
 
 - a fresh embedding-backed local eval dataset has been generated under `.test-tmp/eval-seed/`
 - the corresponding local validation run passed `7/7` curated cases
-- the first local retrieval evaluation run completed under `artifacts/evaluations/20260424T062035Z/`
+- the committed Step 3 proof pack in [docs/PROOF_OF_VALUE.md](C:/Users/matth/Projects/Trace/Trace/docs/PROOF_OF_VALUE.md) is the approved stable artifact for the selected side-by-side comparisons
+- on the underlying local retrieval eval corpus, `trace_prefilter_vector` and `vector_postfilter` tied on the current labeled set while `keyword_only` lagged at `0.250` average `Recall@k`, `0.150` average `Precision@k`, and `0.000` filtered strict accuracy
 - the eval dataset is now uploaded to `s3://trace-vault/trace/eval/lance/`
 - the smoke stack `trace-smoke` is deployed in `us-east-1`
 - the eval stack `trace-eval` is deployed in `us-east-1`

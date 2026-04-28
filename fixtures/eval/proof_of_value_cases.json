@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "artifacts": [
+    {
+      "artifact_id": "insurance-keyword-gap",
+      "comparison_type": "keyword_vs_trace",
+      "retrieval_case_id": "insurance-lapse-relevance",
+      "title": "Keyword overlap missed the insurance lapse cases"
+    },
+    {
+      "artifact_id": "insurance-scope-gap",
+      "comparison_type": "semantic_scope",
+      "retrieval_case_id": "chi-insurance-filtered-relevance",
+      "title": "Semantic retrieval needed city and document scope"
+    }
+  ]
+}

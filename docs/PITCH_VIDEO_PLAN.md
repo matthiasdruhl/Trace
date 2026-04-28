@@ -1,6 +1,6 @@
 # Trace pitch video plan
 
-Last updated: 2026-04-24
+Last updated: 2026-04-28
 
 This document defines the recommended three-minute finalist pitch structure for
 Trace.
@@ -118,6 +118,16 @@ Prepare these before recording:
 - one metric or benchmark slide
 - one explanation or evidence-handoff visual
 - one closing slide with the product promise
+
+The committed side-by-side proof pack is `docs/PROOF_OF_VALUE.md`.
+Use the same two artifact IDs in the pitch script and backup slides:
+
+- `insurance-keyword-gap`
+- `insurance-scope-gap`
+
+When citing those artifacts, keep the claim boundary explicit: they are
+selected local retrieval comparisons from the committed eval corpus, not a
+broad benchmark or a deployed-path equivalence claim.
 
 ## 4. Recording guidance
 

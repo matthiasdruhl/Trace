@@ -39,6 +39,7 @@ DEFAULT_ARTIFACTS_ROOT = ROOT / "artifacts" / "evaluations"
 METHOD_TRACE_PREFILTER = "trace_prefilter_vector"
 METHOD_KEYWORD_ONLY = "keyword_only"
 METHOD_VECTOR_POSTFILTER = "vector_postfilter"
+METHOD_SEMANTIC_ONLY_VECTOR = "semantic_only_vector"
 METHOD_ORDER = (
     METHOD_TRACE_PREFILTER,
     METHOD_KEYWORD_ONLY,
@@ -714,6 +715,15 @@ def vector_postfilter_search(
     )
 
 
+def semantic_only_vector_search(
+    table: Any,
+    *,
+    query_vector: np.ndarray,
+    case: RetrievalCase,
+) -> SearchExecution:
+    return SearchExecution(rows=list(table.search(query_vector).limit(case.limit).to_list()))
+
+
 def aggregate_method_metrics(case_payloads: list[dict[str, Any]], method: str) -> dict[str, Any]:
     method_results = [case_payload["methods"][method] for case_payload in case_payloads]
     filtered_results = [result for result in method_results if result["sql_filter"]]
@@ -878,6 +888,7 @@ def run_evaluation(
     cases_path: Path,
     report_path: Path,
     summary_path: Path,
+    generated_at: datetime,
     embedding_model: str,
     preview_limit: int,
     postfilter_candidate_multiplier: int = 10,
@@ -911,19 +922,33 @@ def run_evaluation(
             postfilter_candidate_multiplier=postfilter_candidate_multiplier,
             postfilter_candidate_limit=postfilter_candidate_limit,
         )
+        method_results = [
+            evaluate_case_metrics(case, METHOD_TRACE_PREFILTER, trace_rows, preview_limit=preview_limit),
+            evaluate_case_metrics(case, METHOD_KEYWORD_ONLY, keyword_rows, preview_limit=preview_limit),
+            evaluate_case_metrics(case, METHOD_VECTOR_POSTFILTER, postfilter_rows, preview_limit=preview_limit),
+        ]
+        if case.filter_expr is not None:
+            semantic_only_rows = semantic_only_vector_search(
+                table,
+                query_vector=vector_np,
+                case=case,
+            )
+            method_results.append(
+                evaluate_case_metrics(
+                    case,
+                    METHOD_SEMANTIC_ONLY_VECTOR,
+                    semantic_only_rows,
+                    preview_limit=preview_limit,
+                )
+            )
 
         case_payloads.append(
             build_case_payload(
                 case,
-                [
-                    evaluate_case_metrics(case, METHOD_TRACE_PREFILTER, trace_rows, preview_limit=preview_limit),
-                    evaluate_case_metrics(case, METHOD_KEYWORD_ONLY, keyword_rows, preview_limit=preview_limit),
-                    evaluate_case_metrics(case, METHOD_VECTOR_POSTFILTER, postfilter_rows, preview_limit=preview_limit),
-                ],
+                method_results,
             )
         )
 
-    generated_at = datetime.now(timezone.utc)
     report = build_report(
         generated_at=generated_at,
         manifest_path=manifest_path,
@@ -960,13 +985,14 @@ def main() -> int:
         args.embedding_model,
         manifest_path=manifest_path,
     )
-    now = datetime.now(timezone.utc)
-    report_path, summary_path = resolve_report_paths(args, make_run_id(now))
+    generated_at = datetime.now(timezone.utc)
+    report_path, summary_path = resolve_report_paths(args, make_run_id(generated_at))
     return run_evaluation(
         manifest_path=manifest_path,
         cases_path=args.cases_path.expanduser().resolve(),
         report_path=report_path,
         summary_path=summary_path,
+        generated_at=generated_at,
         embedding_model=embedding_model,
         preview_limit=max(1, args.preview_results),
         postfilter_candidate_multiplier=args.postfilter_candidate_multiplier,
