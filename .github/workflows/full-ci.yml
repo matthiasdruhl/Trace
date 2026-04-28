@@ -200,7 +200,8 @@ jobs:
       - name: Validate packaged app API artifact
         run: |
           test -f .aws-sam/build/template.yaml
-          test -f .aws-sam/build/TraceAppApiFunction/app-api.mjs
+          test -f .aws-sam/build/TraceAppApiFunctionV2/app-api.js
+          test ! -f .aws-sam/build/TraceAppApiFunctionV2/app-api.mjs
 
       - name: Upload SAM build artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

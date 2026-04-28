@@ -21,7 +21,8 @@ for dataset generation, eval proof workflow, and smoke/eval rollout details.
 - dataset bucket: `trace-vault`
 - dataset prefix: `trace/eval/lance`
 - OpenAI secret ref: `trace/openai-api-key`
-- OpenAI JSON key: `openaiApiKey`
+- OpenAI secret format: plain text `SecretString`
+- OpenAI JSON key: empty by default
 
 ## Prerequisites
 
@@ -40,6 +41,15 @@ You also need:
 - a deployed stack or permission to deploy one
 - an OpenAI secret in AWS Secrets Manager
 - local repo access at `C:\Users\matth\Projects\Trace\Trace`
+
+Current OpenAI secret convention:
+
+- store `trace/openai-api-key` as a plain-text secret
+- do not wrap the key in JSON
+- keep `OpenAiApiKeySecretJsonKey` empty
+- let the app API Lambda read the secret at runtime via
+  `OPENAI_API_KEY_SECRET_REF`; do not reintroduce direct stack-managed
+  `OPENAI_API_KEY` plaintext injection
 
 ## Which deploy path to use
 
@@ -67,7 +77,8 @@ What it does:
 - sets `VITE_TRACE_API_BASE_URL`
 - runs `npm.cmd run build` in `demo-ui/`
 - syncs `demo-ui/dist` to the frontend bucket
-- invalidates CloudFront
+- invalidates CloudFront and waits for completion
+- smoke-tests the deployed root, `/api/health`, and a real `POST /api/search`
 
 Optional overrides:
 
@@ -87,7 +98,11 @@ What it does:
 
 - runs `sam build --beta-features`
 - deploys the current SAM template to `trace-eval`
-- publishes the frontend after the stack update succeeds
+- converts blank secret-ref and JSON-key parameters to the sentinel
+  `__EMPTY__` so SAM clears stale stack values instead of silently reusing an
+  earlier secret configuration
+- publishes the frontend only after the stack update succeeds
+- runs the same post-publish smoke tests unless you opt out
 
 Optional overrides:
 
@@ -98,13 +113,20 @@ Optional overrides:
   -TraceDataBucketName trace-vault `
   -TraceLancePrefix trace/eval/lance `
   -OpenAiApiKeySecretRef trace/openai-api-key `
-  -OpenAiApiKeySecretJsonKey openaiApiKey
+  -OpenAiApiKeySecretJsonKey ""
 ```
 
 If you want to update infrastructure without publishing the frontend yet:
 
 ```powershell
 .\scripts\deploy-full.ps1 -SkipFrontendPublish
+```
+
+If you need to bypass smoke tests during an incident or partial backend outage:
+
+```powershell
+.\scripts\deploy-full.ps1 -SkipSmokeTest
+.\scripts\deploy-frontend.ps1 -SkipSmokeTest
 ```
 
 ## Verify the deployment
@@ -136,6 +158,39 @@ Open the live app:
 
 - [AppUrl](https://d16y21pmy9pe9s.cloudfront.net)
 
+Manual API smoke tests:
+
+```powershell
+Invoke-RestMethod https://d16y21pmy9pe9s.cloudfront.net/api/health
+```
+
+```powershell
+$body = @{
+  queryText = "recent vehicle inspection audit with overdue paperwork"
+  filters = @{}
+  limit = 3
+} | ConvertTo-Json -Depth 5
+
+Invoke-RestMethod `
+  -Uri "https://d16y21pmy9pe9s.cloudfront.net/api/search" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body $body
+```
+
+Expected smoke-test behavior:
+
+- `/api/health` returns `ok: true` and `ready: true`
+- `POST /api/search` returns `queryText`, `appliedFilter`, `results`, and `meta`
+- a direct browser visit to `/api/search` still returns `Not Found` because that
+  route expects `POST`, not `GET`
+
+Current healthy response:
+
+```json
+{"ok":true,"service":"trace-app-api","ready":true,"checks":{"traceSearchUrl":true,"embeddingsConfigured":true}}
+```
+
 ## Typical update workflow
 
 ### UI-only change
@@ -148,8 +203,9 @@ Open the live app:
 
 1. Edit files in `mcp-bridge/`, `lambda-engine/`, or `template.yaml`.
 2. Run `.\scripts\deploy-full.ps1`.
-3. Run the deployed proof.
-4. Refresh the live app and confirm the affected behavior.
+3. Confirm the helper's root, health, and search smoke tests pass.
+4. Run the deployed proof.
+5. Refresh the live app and confirm the affected behavior.
 
 ## Troubleshooting
 
@@ -162,6 +218,58 @@ If the frontend deploy succeeds but the app looks stale:
 
 - wait for the CloudFront invalidation to finish
 - hard refresh the browser
+
+If the helper's `/api/search` smoke test fails:
+
+- check `aws logs tail /aws/lambda/trace-eval-trace-app-api-v2 --since 15m --follow --region us-east-1`
+- verify the OpenAI secret is plain text, not JSON
+- confirm the stack parameters keep `OpenAiApiKeySecretJsonKey` empty
+- confirm the live health endpoint still returns `ready: true`
+
+If `/api/health` returns `{"message":"Internal Server Error"}` immediately after
+deploy:
+
+- check whether the app Lambda was packaged as CommonJS, not ESM
+- confirm the packaged artifact is `.aws-sam/build/TraceAppApiFunctionV2/app-api.js`
+- redeploy after rebuilding if you still see an old `app-api.mjs` artifact
+
+## Manual emergency override
+
+Use this only when you need the live app working immediately and the stack
+parameter/secret wiring is still broken. This updates the deployed app API
+Lambda directly rather than through CloudFormation.
+
+```powershell
+aws lambda update-function-configuration `
+  --function-name trace-eval-trace-app-api-v2 `
+  --environment "Variables={NODE_ENV=production,NODE_OPTIONS=--enable-source-maps,OPENAI_API_KEY=YOUR_REAL_OPENAI_KEY,OPENAI_API_KEY_SECRET_REF=trace/openai-api-key,OPENAI_API_KEY_SECRET_JSON_KEY=,OPENAI_EMBEDDING_MODEL=text-embedding-3-small,TRACE_API_KEY_SECRET_REF=,TRACE_API_KEY_SECRET_JSON_KEY=,TRACE_APP_ENABLE_FIXTURE_MODE=false,TRACE_SEARCH_URL=https://kqsqrljj11.execute-api.us-east-1.amazonaws.com/search}" `
+  --region us-east-1
+```
+
+Wait for the config update to finish:
+
+```powershell
+aws lambda wait function-updated `
+  --function-name trace-eval-trace-app-api-v2 `
+  --region us-east-1
+```
+
+Then test the live app again.
+
+Important behavior difference:
+
+- `sam deploy` path: yes, redeploy is needed because the stack manages the
+  Lambda environment
+- direct `aws lambda update-function-configuration` path: no full redeploy is
+  needed first
+
+Important caution:
+
+- this is a manual live override, not the preferred steady-state deployment path
+- a future `sam deploy` can overwrite the manual Lambda environment unless the
+  stack-managed secret-ref configuration is also fixed
+- after using this escape hatch, bring the stack back into sync with the
+  documented plain-text secret convention
 
 If `/api/search` returns `{"message":"Not Found"}` in the browser:
 
