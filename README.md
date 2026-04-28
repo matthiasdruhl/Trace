@@ -61,6 +61,18 @@ report also evaluates `vector_postfilter`; on the current labeled corpus it
 matches `trace_prefilter_vector`, so the proof pack is intentionally showing two
 selected failure modes rather than claiming that every non-Trace baseline loses.
 
+## Evidence
+
+The canonical Step 4 evidence pack lives in
+[docs/BENCHMARK_EVIDENCE.md](C:/Users/matth/Projects/Trace/Trace/docs/BENCHMARK_EVIDENCE.md).
+Use that doc and
+[fixtures/eval/benchmark_evidence_snapshot.json](C:/Users/matth/Projects/Trace/Trace/fixtures/eval/benchmark_evidence_snapshot.json)
+for README, demo, and pitch-safe numbers.
+
+- Trace reached `1.000` average `Recall@k` and `1.000` filtered strict accuracy on the current labeled eval corpus.
+- `keyword_only` lagged at `0.250` average `Recall@k`, `0.150` average `Precision@k`, and `0.000` filtered strict accuracy on that same corpus.
+- the deployed `trace-eval` benchmark artifact now records warm HTTP median latency of `187.761` ms, median reported `took_ms` of `92.000` ms, direct-Lambda cold-sample median `Init Duration` of `97.480` ms plus median billed duration of `1728.000` ms, and estimated warm search-runtime cost of `0.00000164` USD/query
+
 ## At A Glance
 
 The current repository contains:
@@ -291,11 +303,11 @@ Current local status:
 - a fresh embedding-backed local eval dataset has been generated under `.test-tmp/eval-seed/`
 - the corresponding local validation run passed `7/7` curated cases
 - the committed Step 3 proof pack in [docs/PROOF_OF_VALUE.md](C:/Users/matth/Projects/Trace/Trace/docs/PROOF_OF_VALUE.md) is the approved stable artifact for the selected side-by-side comparisons
-- on the underlying local retrieval eval corpus, `trace_prefilter_vector` and `vector_postfilter` tied on the current labeled set while `keyword_only` lagged at `0.250` average `Recall@k`, `0.150` average `Precision@k`, and `0.000` filtered strict accuracy
+- the canonical Step 4 benchmark and evaluation summary now lives in [docs/BENCHMARK_EVIDENCE.md](C:/Users/matth/Projects/Trace/Trace/docs/BENCHMARK_EVIDENCE.md)
 - the eval dataset is now uploaded to `s3://trace-vault/trace/eval/lance/`
 - the smoke stack `trace-smoke` is deployed in `us-east-1`
 - the eval stack `trace-eval` is deployed in `us-east-1`
-- the first deployed proof run passed against the eval stack
+- the latest deployed benchmark artifact lives under `artifacts/benchmarks/20260428T190704Z/`
 
 ### 2. Validate the Rust Lambda
 
@@ -360,7 +372,7 @@ Current status:
 - the current smoke dataset is `s3://trace-vault/uber_audit.lance/`
 - the eval dataset is live at `s3://trace-vault/trace/eval/lance/`
 - `trace-smoke` search URL: `https://u73d8vk2yl.execute-api.us-east-1.amazonaws.com/search`
-- `trace-eval` search URL: `https://kp2kjz4fkg.execute-api.us-east-1.amazonaws.com/search`
+- `trace-eval` search URL: `https://kqsqrljj11.execute-api.us-east-1.amazonaws.com/search`
 - the first eval proof run passed and wrote artifacts under `artifacts/validation-runs/20260423T233528Z`
 - representative stable fixtures are committed under `fixtures/deployed/examples/`
 

@@ -101,7 +101,7 @@ Prepare these before submission:
 - one AI-assisted explanation or handoff moment
 - one screenshot or stable fixture per key demo moment
 - one short architecture visual
-- one benchmark or eval summary line
+- one benchmark or eval summary line sourced from `docs/BENCHMARK_EVIDENCE.md`
 
 ## 5. Recommended query set
 
@@ -166,6 +166,9 @@ Use these two artifact IDs everywhere:
 This artifact can be used in the README, pitch video, and judge-facing docs.
 When quoting it live, describe it as selected local retrieval evidence from the
 committed eval corpus, not as a broad benchmark or deployed-path proof.
+For the one benchmark or eval summary line in the demo, reuse the canonical
+Step 4 wording from `docs/BENCHMARK_EVIDENCE.md` instead of inventing new
+numbers in the script.
 
 ## 8. Demo failure-prevention checklist
 
