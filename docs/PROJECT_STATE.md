@@ -1,6 +1,6 @@
 # Trace project state
 
-Last updated: 2026-04-26
+Last updated: 2026-04-28
 
 ## Summary
 
@@ -19,7 +19,7 @@ Against the active backlog in `docs/NEXT_STEPS.md`, the current status is:
 
 - step 1 (clarify the product story everywhere): complete
 - step 2 (build a strong demo surface): complete
-- step 3 (create a side-by-side proof of value): not implemented yet
+- step 3 (create a side-by-side proof of value): complete
 - step 4 (package benchmark and evaluation evidence for judges): partially complete
 - step 5 (tighten deployment and operator documentation): partially complete
 - step 6 (harden deployed proof automation): partially complete
@@ -121,11 +121,11 @@ Implemented in `scripts/evaluate_retrieval.py`, `scripts/filter_expr.py`, and `f
 
 Current local retrieval-eval status:
 
-- the first local retrieval evaluation run completed successfully under `artifacts/evaluations/20260424T062035Z`
-- that run used the local eval dataset under `.test-tmp/eval-seed/`
-- that run used the default `vector_postfilter` candidate multiplier of `10` with no fixed candidate-limit override
+- the same local eval corpus now feeds the committed proof pack in `docs/PROOF_OF_VALUE.md`
+- the latest local retrieval evaluation used the local eval dataset under `.test-tmp/eval-seed/`
+- the latest local retrieval evaluation used the default `vector_postfilter` candidate multiplier of `10` with no fixed candidate-limit override
 - `trace_prefilter_vector` reached `1.000` average `Recall@k`, `0.600` average `Precision@k`, and `1.000` filtered strict accuracy on the current labeled set
-- `keyword_only` reached `0.238` average `Recall@k`, `0.143` average `Precision@k`, and `0.500` filtered strict accuracy
+- `keyword_only` reached `0.250` average `Recall@k`, `0.150` average `Precision@k`, and `0.000` filtered strict accuracy
 - `vector_postfilter` matched `trace_prefilter_vector` on the current labeled set, but that comparison is sensitive to the configured postfilter candidate window and the small local corpus
 
 Metric definitions used by the harness:
@@ -141,6 +141,17 @@ Boundary on these claims:
 - this harness is local evidence on a small labeled corpus, not a final benchmark suite
 - it does not prove that the deployed stack is equivalent to the local harness path
 - it should not be treated as proof of broad retrieval superiority outside the current corpus
+
+### Proof-of-value comparison pack
+
+Implemented in `scripts/build_proof_of_value.py`, `fixtures/eval/proof_of_value_cases.json`,
+`fixtures/eval/proof_of_value_snapshot.json`, and `docs/PROOF_OF_VALUE.md`:
+
+- a committed side-by-side artifact now packages the insurance lapse workflow where keyword-only search fails but Trace succeeds
+- a second committed artifact shows that semantic-only retrieval is still too broad for the Chicago insurance workflow until metadata scope is applied
+- the proof pack is grounded in the local retrieval harness and the current embedding-backed eval dataset, not in ad hoc screenshots
+- the same local report also shows `vector_postfilter` matching `trace_prefilter_vector` on the current labeled set, so the proof pack should be read as two selected operator-facing comparisons rather than universal baseline dominance
+- the same artifact IDs can now be reused consistently in the README, demo, and pitch
 
 ### Deployed proof path
 
@@ -199,7 +210,6 @@ Deployed in AWS (`us-east-1`):
 
 - There are not yet benchmark artifacts for latency, memory footprint, or cost-per-query
 - There is not yet a completed deployment history for smoke/eval stacks, although `docs/DEPLOYMENT_RUNBOOK.md` now documents that workflow
-- There is not yet a side-by-side proof artifact that shows Trace outperforming weaker baselines in a judge-friendly visual form
 
 ## Current repo guidance
 

@@ -1,6 +1,6 @@
 # Trace demo plan
 
-Last updated: 2026-04-24
+Last updated: 2026-04-28
 
 This document defines the recommended demo structure for Trace in the
 Handshake x OpenAI Codex Creator Challenge. The goal is not to show every
@@ -156,7 +156,16 @@ For each mode, show:
 - what was missed
 - why the Trace output is the best operational answer
 
+The committed proof pack now lives in `docs/PROOF_OF_VALUE.md`.
+
+Use these two artifact IDs everywhere:
+
+- `insurance-keyword-gap`
+- `insurance-scope-gap`
+
 This artifact can be used in the README, pitch video, and judge-facing docs.
+When quoting it live, describe it as selected local retrieval evidence from the
+committed eval corpus, not as a broad benchmark or deployed-path proof.
 
 ## 8. Demo failure-prevention checklist
 

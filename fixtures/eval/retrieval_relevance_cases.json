@@ -73,6 +73,19 @@
     "notes": "This case measures semantics plus metadata prefiltering on the same local dataset."
   },
   {
+    "id": "chi-insurance-filtered-relevance",
+    "query": "insurance lapse or coverage gap for fleet vehicles",
+    "sql_filter": "city_code = 'CHI-BACP' AND doc_type = 'Insurance_Lapse_Report'",
+    "limit": 5,
+    "relevant_incident_ids": [
+      "01db0ffb-8392-5fea-bdf2-2b19d1ec5dda",
+      "a6119d69-6fa6-53d9-b23f-81f5892a7756",
+      "c133efda-c05a-57b2-adba-881f024243fc"
+    ],
+    "category": "filtered",
+    "notes": "This case packages the Chicago insurance-lapse workflow used in the proof-of-value comparison pack."
+  },
+  {
     "id": "recent-mex-permit-filtered-relevance",
     "query": "Find recent Mexico City permit renewal backlog cases that still need renewal paperwork completed.",
     "sql_filter": "city_code = 'MEX-SEMOVI' AND doc_type = 'City_Permit_Renewal' AND timestamp >= '2025-01-01T00:00:00Z'",

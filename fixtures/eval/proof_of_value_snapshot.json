@@ -1,0 +1,391 @@
+{
+  "artifacts": [
+    {
+      "applied_scope": {
+        "sql_filter": null,
+        "summary": "No structured scope. This artifact isolates the semantic retrieval advantage."
+      },
+      "artifact_id": "insurance-keyword-gap",
+      "comparison_table": [
+        {
+          "labeled_hits": "0/3",
+          "mode": "Keyword only",
+          "scope_matches": "n/a",
+          "takeaway": "Keyword-only returned 0 of 3 labeled positives in the top 5. It missed 3 labeled incident(s). 5 returned row(s) were unlabeled matches."
+        },
+        {
+          "labeled_hits": "3/3",
+          "mode": "Trace hybrid",
+          "scope_matches": "n/a",
+          "takeaway": "Trace returned 3 of 3 labeled positives in the top 5 without relying on exact keyword overlap."
+        }
+      ],
+      "comparison_type": "keyword_vs_trace",
+      "labeled_positive_ids": [
+        "53d0c4a4-ee39-5489-aae1-138d5d5f1e2d",
+        "33b05273-4380-5229-9d67-17cf62d38bea",
+        "e2591fd3-586e-5f60-97a2-1d3dbb7a839d"
+      ],
+      "modes": {
+        "trace": {
+          "label": "Trace hybrid",
+          "labeled_hit_ids": [
+            "53d0c4a4-ee39-5489-aae1-138d5d5f1e2d",
+            "33b05273-4380-5229-9d67-17cf62d38bea",
+            "e2591fd3-586e-5f60-97a2-1d3dbb7a839d"
+          ],
+          "missed_labeled_ids": [],
+          "mode": "trace_prefilter_vector",
+          "returned_count": 5,
+          "returned_ids": [
+            "53d0c4a4-ee39-5489-aae1-138d5d5f1e2d",
+            "33b05273-4380-5229-9d67-17cf62d38bea",
+            "e2591fd3-586e-5f60-97a2-1d3dbb7a839d",
+            "1260deaf-1d6e-5477-9e17-e9d97a745b6a",
+            "89dd054f-72ff-5d01-b402-dc5d611e524c"
+          ],
+          "scope_match_count": null,
+          "scope_miss_ids": [],
+          "summary": "Trace returned 3 of 3 labeled positives in the top 5 without relying on exact keyword overlap.",
+          "top_results": [
+            {
+              "city_code": "CHI-BACP",
+              "doc_type": "Insurance_Lapse_Report",
+              "excerpt": "Coverage for fleet vehicle VIN Z2JW1N71KLXM501A6 in CHI-BACP lapsed on 2023-09-26, and the platform suspended driver DRV-392879918 until a new certificate from Nationwide Commer...",
+              "incident_id": "53d0c4a4-ee39-5489-aae1-138d5d5f1e2d",
+              "is_labeled_positive": true,
+              "matches_scope": null,
+              "rank": 1,
+              "timestamp": "2026-01-31T06:14:46+00:00"
+            },
+            {
+              "city_code": "MEX-SEMOVI",
+              "doc_type": "Insurance_Lapse_Report",
+              "excerpt": "Coverage for fleet vehicle VIN 3HHSV4NBUVLYFBLTS in MEX-SEMOVI lapsed on 2024-08-06, and the platform suspended driver DRV-758165301 until a new certificate from Travelers Fleet...",
+              "incident_id": "33b05273-4380-5229-9d67-17cf62d38bea",
+              "is_labeled_positive": true,
+              "matches_scope": null,
+              "rank": 2,
+              "timestamp": "2023-08-31T12:36:04+00:00"
+            },
+            {
+              "city_code": "CHI-BACP",
+              "doc_type": "Insurance_Lapse_Report",
+              "excerpt": "Coverage for fleet vehicle VIN FT8019XMB477PHXJ9 in CHI-BACP lapsed on 2024-07-05, and the platform suspended driver DRV-588077312 until a new certificate from Progressive Busin...",
+              "incident_id": "e2591fd3-586e-5f60-97a2-1d3dbb7a839d",
+              "is_labeled_positive": true,
+              "matches_scope": null,
+              "rank": 3,
+              "timestamp": "2023-01-07T16:04:41+00:00"
+            },
+            {
+              "city_code": "MEX-SEMOVI",
+              "doc_type": "Insurance_Lapse_Report",
+              "excerpt": "Coverage for fleet vehicle VIN 92LS1XKPFKF855JDF in MEX-SEMOVI lapsed on 2021-11-07, and the platform suspended driver DRV-133010461 until a new certificate from Chubb Commercia...",
+              "incident_id": "1260deaf-1d6e-5477-9e17-e9d97a745b6a",
+              "is_labeled_positive": false,
+              "matches_scope": null,
+              "rank": 4,
+              "timestamp": "2022-06-21T10:07:38+00:00"
+            },
+            {
+              "city_code": "NYC-TLC",
+              "doc_type": "Insurance_Lapse_Report",
+              "excerpt": "Coverage for fleet vehicle VIN LUDM4XUUVP1LFJJ6G in NYC-TLC lapsed on 2026-11-16, and the platform suspended driver DRV-349251565 until a new certificate from Liberty Mutual Com...",
+              "incident_id": "89dd054f-72ff-5d01-b402-dc5d611e524c",
+              "is_labeled_positive": false,
+              "matches_scope": null,
+              "rank": 5,
+              "timestamp": "2022-10-11T19:09:41+00:00"
+            }
+          ]
+        },
+        "weaker": {
+          "label": "Keyword only",
+          "labeled_hit_ids": [],
+          "missed_labeled_ids": [
+            "53d0c4a4-ee39-5489-aae1-138d5d5f1e2d",
+            "33b05273-4380-5229-9d67-17cf62d38bea",
+            "e2591fd3-586e-5f60-97a2-1d3dbb7a839d"
+          ],
+          "mode": "keyword_only",
+          "returned_count": 5,
+          "returned_ids": [
+            "e0156821-6436-5002-bd6e-156b33459a42",
+            "045047cf-ac3f-535a-82ec-d02ddc302c56",
+            "b73a28fb-a1a4-599e-9475-cb0f91b6ed03",
+            "87775731-ec5f-5f31-89d3-265355183987",
+            "79e3a0f1-fb58-58ab-9bf0-ddbc5ea50c6b"
+          ],
+          "scope_match_count": null,
+          "scope_miss_ids": [],
+          "summary": "Keyword-only returned 0 of 3 labeled positives in the top 5. It missed 3 labeled incident(s). 5 returned row(s) were unlabeled matches.",
+          "top_results": [
+            {
+              "city_code": "NYC-TLC",
+              "doc_type": "City_Permit_Renewal",
+              "excerpt": "Permit renewal staff in NYC-TLC confirmed that driver DRV-904935736 uploaded a fresh insurance certificate from Chubb Commercial Auto on 2023-08-12; the keywords mention coverag...",
+              "incident_id": "e0156821-6436-5002-bd6e-156b33459a42",
+              "is_labeled_positive": false,
+              "matches_scope": null,
+              "rank": 1,
+              "timestamp": "2023-11-18T07:31:19+00:00"
+            },
+            {
+              "city_code": "NYC-TLC",
+              "doc_type": "City_Permit_Renewal",
+              "excerpt": "Permit renewal staff in NYC-TLC confirmed that driver DRV-129385792 uploaded a fresh insurance certificate from Chubb Commercial Auto on 2023-07-27; the keywords mention coverag...",
+              "incident_id": "045047cf-ac3f-535a-82ec-d02ddc302c56",
+              "is_labeled_positive": false,
+              "matches_scope": null,
+              "rank": 2,
+              "timestamp": "2024-11-20T11:10:45+00:00"
+            },
+            {
+              "city_code": "MEX-SEMOVI",
+              "doc_type": "Insurance_Lapse_Report",
+              "excerpt": "Coverage for fleet vehicle VIN U9SYMNLW3C21JVF2G in MEX-SEMOVI lapsed on 2023-02-27, and the platform suspended driver DRV-156926715 until a new certificate from Chubb Commercia...",
+              "incident_id": "b73a28fb-a1a4-599e-9475-cb0f91b6ed03",
+              "is_labeled_positive": false,
+              "matches_scope": null,
+              "rank": 3,
+              "timestamp": "2023-07-16T22:39:22+00:00"
+            },
+            {
+              "city_code": "NYC-TLC",
+              "doc_type": "Insurance_Lapse_Report",
+              "excerpt": "Coverage for fleet vehicle VIN BFH3XS1764LNBJW9B in NYC-TLC lapsed on 2021-03-10, and the platform suspended driver DRV-531997272 until a new certificate from Chubb Commercial A...",
+              "incident_id": "87775731-ec5f-5f31-89d3-265355183987",
+              "is_labeled_positive": false,
+              "matches_scope": null,
+              "rank": 4,
+              "timestamp": "2026-03-11T05:22:04+00:00"
+            },
+            {
+              "city_code": "MEX-SEMOVI",
+              "doc_type": "Insurance_Lapse_Report",
+              "excerpt": "Coverage for fleet vehicle VIN 0YWLW9KNT5M5RJ84W in MEX-SEMOVI lapsed on 2023-09-19, and the platform suspended driver DRV-658933960 until a new certificate from Chubb Commercia...",
+              "incident_id": "79e3a0f1-fb58-58ab-9bf0-ddbc5ea50c6b",
+              "is_labeled_positive": false,
+              "matches_scope": null,
+              "rank": 5,
+              "timestamp": "2024-07-04T19:38:24+00:00"
+            }
+          ]
+        }
+      },
+      "operator_handoff_note": {
+        "applied_scope": "No structured scope. This artifact isolates the semantic retrieval advantage.",
+        "boundary": "Templated from the retrieved evidence and mode summaries; not a separate model output.",
+        "investigation_goal": "Which fleet vehicles had commercial auto coverage lapse and were suspended until a new insurance certificate was uploaded?",
+        "primary_evidence": "53d0c4a4-ee39-5489-aae1-138d5d5f1e2d | Insurance_Lapse_Report | CHI-BACP | 2026-01-31T06:14:46+00:00",
+        "suggested_handoff": "Escalate incident 53d0c4a4-ee39-5489-aae1-138d5d5f1e2d with the semantic evidence trail instead of relying on exact keyword matches.",
+        "why_trace_wins": "Trace returned 3 of 3 labeled positives in the top 5 without relying on exact keyword overlap.",
+        "why_weaker_mode_failed": "Keyword-only returned 0 of 3 labeled positives in the top 5. It missed 3 labeled incident(s). 5 returned row(s) were unlabeled matches."
+      },
+      "operator_task": "Answer the archive question 'Which fleet vehicles had commercial auto coverage lapse and were suspended until a new insurance certificate was uploaded?' without relying on exact keyword overlap.",
+      "query": "Which fleet vehicles had commercial auto coverage lapse and were suspended until a new insurance certificate was uploaded?",
+      "retrieval_case_id": "insurance-lapse-relevance",
+      "title": "Keyword overlap missed the insurance lapse cases"
+    },
+    {
+      "applied_scope": {
+        "sql_filter": "city_code = 'CHI-BACP' AND doc_type = 'Insurance_Lapse_Report'",
+        "summary": "city CHI-BACP | document type Insurance_Lapse_Report"
+      },
+      "artifact_id": "insurance-scope-gap",
+      "comparison_table": [
+        {
+          "labeled_hits": "3/3",
+          "mode": "Semantic only",
+          "scope_matches": "3/5",
+          "takeaway": "Semantic-only vector retrieval returned 3 of 3 labeled positives but surfaced 2 out-of-scope row(s) from MEX-SEMOVI, NYC-TLC in the top 5."
+        },
+        {
+          "labeled_hits": "3/3",
+          "mode": "Trace hybrid",
+          "scope_matches": "5/5",
+          "takeaway": "Trace returned 3 of 3 labeled positives and kept 5 of 5 returned rows inside the requested scope."
+        }
+      ],
+      "comparison_type": "semantic_scope",
+      "labeled_positive_ids": [
+        "01db0ffb-8392-5fea-bdf2-2b19d1ec5dda",
+        "a6119d69-6fa6-53d9-b23f-81f5892a7756",
+        "c133efda-c05a-57b2-adba-881f024243fc"
+      ],
+      "modes": {
+        "trace": {
+          "label": "Trace hybrid",
+          "labeled_hit_ids": [
+            "01db0ffb-8392-5fea-bdf2-2b19d1ec5dda",
+            "a6119d69-6fa6-53d9-b23f-81f5892a7756",
+            "c133efda-c05a-57b2-adba-881f024243fc"
+          ],
+          "missed_labeled_ids": [],
+          "mode": "trace_prefilter_vector",
+          "returned_count": 5,
+          "returned_ids": [
+            "01db0ffb-8392-5fea-bdf2-2b19d1ec5dda",
+            "a6119d69-6fa6-53d9-b23f-81f5892a7756",
+            "c133efda-c05a-57b2-adba-881f024243fc",
+            "a5b0d17c-d279-533e-8d7d-1ef546b98ab6",
+            "1d857c65-058e-5203-b3c9-a9c7a253939f"
+          ],
+          "scope_match_count": 5,
+          "scope_miss_ids": [],
+          "summary": "Trace returned 3 of 3 labeled positives and kept 5 of 5 returned rows inside the requested scope.",
+          "top_results": [
+            {
+              "city_code": "CHI-BACP",
+              "doc_type": "Insurance_Lapse_Report",
+              "excerpt": "Coverage for fleet vehicle VIN 6NMDRVY86N7JJ96FL in CHI-BACP lapsed on 2023-03-13, and the platform suspended driver DRV-618938916 until a new certificate from Progressive Busin...",
+              "incident_id": "01db0ffb-8392-5fea-bdf2-2b19d1ec5dda",
+              "is_labeled_positive": true,
+              "matches_scope": true,
+              "rank": 1,
+              "timestamp": "2022-03-04T06:14:19+00:00"
+            },
+            {
+              "city_code": "CHI-BACP",
+              "doc_type": "Insurance_Lapse_Report",
+              "excerpt": "A regulator-facing lapse report notes that vehicle VIN F4ZBJUTW2YLKU0LFH lost active commercial coverage with Liberty Mutual Commercial on 2025-02-07, forcing a temporary hold o...",
+              "incident_id": "a6119d69-6fa6-53d9-b23f-81f5892a7756",
+              "is_labeled_positive": true,
+              "matches_scope": true,
+              "rank": 2,
+              "timestamp": "2024-11-10T18:01:20+00:00"
+            },
+            {
+              "city_code": "CHI-BACP",
+              "doc_type": "Insurance_Lapse_Report",
+              "excerpt": "A regulator-facing lapse report notes that vehicle VIN VEC8U83ZP8A27LZEW lost active commercial coverage with Progressive Business Auto on 2024-10-20, forcing a temporary hold o...",
+              "incident_id": "c133efda-c05a-57b2-adba-881f024243fc",
+              "is_labeled_positive": true,
+              "matches_scope": true,
+              "rank": 3,
+              "timestamp": "2022-07-03T18:41:39+00:00"
+            },
+            {
+              "city_code": "CHI-BACP",
+              "doc_type": "Insurance_Lapse_Report",
+              "excerpt": "Coverage for fleet vehicle VIN K3B2JS75S60W9FBWN in CHI-BACP lapsed on 2021-09-19, and the platform suspended driver DRV-759005014 until a new certificate from Travelers Fleet i...",
+              "incident_id": "a5b0d17c-d279-533e-8d7d-1ef546b98ab6",
+              "is_labeled_positive": false,
+              "matches_scope": true,
+              "rank": 4,
+              "timestamp": "2024-10-02T09:32:42+00:00"
+            },
+            {
+              "city_code": "CHI-BACP",
+              "doc_type": "Insurance_Lapse_Report",
+              "excerpt": "Coverage for fleet vehicle VIN 4J2USLGZU3RWD8M9N in CHI-BACP lapsed on 2024-09-18, and the platform suspended driver DRV-346194393 until a new certificate from Travelers Fleet i...",
+              "incident_id": "1d857c65-058e-5203-b3c9-a9c7a253939f",
+              "is_labeled_positive": false,
+              "matches_scope": true,
+              "rank": 5,
+              "timestamp": "2025-10-26T06:27:35+00:00"
+            }
+          ]
+        },
+        "weaker": {
+          "label": "Semantic only",
+          "labeled_hit_ids": [
+            "01db0ffb-8392-5fea-bdf2-2b19d1ec5dda",
+            "a6119d69-6fa6-53d9-b23f-81f5892a7756",
+            "c133efda-c05a-57b2-adba-881f024243fc"
+          ],
+          "missed_labeled_ids": [],
+          "mode": "semantic_only_vector",
+          "returned_count": 5,
+          "returned_ids": [
+            "15d2f66f-5fa9-5fca-9bc4-2ef1ee64f3ff",
+            "01db0ffb-8392-5fea-bdf2-2b19d1ec5dda",
+            "a6119d69-6fa6-53d9-b23f-81f5892a7756",
+            "c133efda-c05a-57b2-adba-881f024243fc",
+            "9155b2d4-c5a6-5c83-9a00-2ce7fba58951"
+          ],
+          "scope_match_count": 3,
+          "scope_miss_ids": [
+            "15d2f66f-5fa9-5fca-9bc4-2ef1ee64f3ff",
+            "9155b2d4-c5a6-5c83-9a00-2ce7fba58951"
+          ],
+          "summary": "Semantic-only vector retrieval returned 3 of 3 labeled positives but surfaced 2 out-of-scope row(s) from MEX-SEMOVI, NYC-TLC in the top 5.",
+          "top_results": [
+            {
+              "city_code": "NYC-TLC",
+              "doc_type": "Insurance_Lapse_Report",
+              "excerpt": "A regulator-facing lapse report notes that vehicle VIN TZCVFG68AKGKXCKCV lost active commercial coverage with Nationwide Commercial on 2021-04-06, forcing a temporary hold on dr...",
+              "incident_id": "15d2f66f-5fa9-5fca-9bc4-2ef1ee64f3ff",
+              "is_labeled_positive": false,
+              "matches_scope": false,
+              "rank": 1,
+              "timestamp": "2023-04-06T14:13:17+00:00"
+            },
+            {
+              "city_code": "CHI-BACP",
+              "doc_type": "Insurance_Lapse_Report",
+              "excerpt": "Coverage for fleet vehicle VIN 6NMDRVY86N7JJ96FL in CHI-BACP lapsed on 2023-03-13, and the platform suspended driver DRV-618938916 until a new certificate from Progressive Busin...",
+              "incident_id": "01db0ffb-8392-5fea-bdf2-2b19d1ec5dda",
+              "is_labeled_positive": true,
+              "matches_scope": true,
+              "rank": 2,
+              "timestamp": "2022-03-04T06:14:19+00:00"
+            },
+            {
+              "city_code": "CHI-BACP",
+              "doc_type": "Insurance_Lapse_Report",
+              "excerpt": "A regulator-facing lapse report notes that vehicle VIN F4ZBJUTW2YLKU0LFH lost active commercial coverage with Liberty Mutual Commercial on 2025-02-07, forcing a temporary hold o...",
+              "incident_id": "a6119d69-6fa6-53d9-b23f-81f5892a7756",
+              "is_labeled_positive": true,
+              "matches_scope": true,
+              "rank": 3,
+              "timestamp": "2024-11-10T18:01:20+00:00"
+            },
+            {
+              "city_code": "CHI-BACP",
+              "doc_type": "Insurance_Lapse_Report",
+              "excerpt": "A regulator-facing lapse report notes that vehicle VIN VEC8U83ZP8A27LZEW lost active commercial coverage with Progressive Business Auto on 2024-10-20, forcing a temporary hold o...",
+              "incident_id": "c133efda-c05a-57b2-adba-881f024243fc",
+              "is_labeled_positive": true,
+              "matches_scope": true,
+              "rank": 4,
+              "timestamp": "2022-07-03T18:41:39+00:00"
+            },
+            {
+              "city_code": "MEX-SEMOVI",
+              "doc_type": "Insurance_Lapse_Report",
+              "excerpt": "Coverage for fleet vehicle VIN 4HC6MMKPXARPDGTC4 in MEX-SEMOVI lapsed on 2025-08-01, and the platform suspended driver DRV-096143604 until a new certificate from Travelers Fleet...",
+              "incident_id": "9155b2d4-c5a6-5c83-9a00-2ce7fba58951",
+              "is_labeled_positive": false,
+              "matches_scope": false,
+              "rank": 5,
+              "timestamp": "2025-05-07T15:44:50+00:00"
+            }
+          ]
+        }
+      },
+      "operator_handoff_note": {
+        "applied_scope": "city CHI-BACP | document type Insurance_Lapse_Report",
+        "boundary": "Templated from the retrieved evidence and mode summaries; not a separate model output.",
+        "investigation_goal": "insurance lapse or coverage gap for fleet vehicles",
+        "primary_evidence": "01db0ffb-8392-5fea-bdf2-2b19d1ec5dda | Insurance_Lapse_Report | CHI-BACP | 2022-03-04T06:14:19+00:00",
+        "suggested_handoff": "Escalate incident 01db0ffb-8392-5fea-bdf2-2b19d1ec5dda with the filtered evidence pack for city CHI-BACP | document type Insurance_Lapse_Report before regulator or compliance review.",
+        "why_trace_wins": "Trace returned 3 of 3 labeled positives and kept 5 of 5 returned rows inside the requested scope.",
+        "why_weaker_mode_failed": "Semantic-only vector retrieval returned 3 of 3 labeled positives but surfaced 2 out-of-scope row(s) from MEX-SEMOVI, NYC-TLC in the top 5."
+      },
+      "operator_task": "Answer the archive question 'insurance lapse or coverage gap for fleet vehicles' within the constrained city CHI-BACP | document type Insurance_Lapse_Report slice.",
+      "query": "insurance lapse or coverage gap for fleet vehicles",
+      "retrieval_case_id": "chi-insurance-filtered-relevance",
+      "title": "Semantic retrieval needed city and document scope"
+    }
+  ],
+  "cases_path": "fixtures/eval/retrieval_relevance_cases.json",
+  "dataset_embedding_model": "text-embedding-3-small",
+  "displayed_results_per_mode": 5,
+  "evidence_boundary": "Local retrieval evidence from the current embedding-backed eval corpus only; not proof of deployed-path equivalence or a broad benchmark.",
+  "proof_config_path": "fixtures/eval/proof_of_value_cases.json",
+  "selection_note": "The same local retrieval report also evaluates `vector_postfilter`. On the current labeled corpus it matches `trace_prefilter_vector`, so this proof pack should be read as two selected examples of keyword brittleness and scope control rather than universal baseline dominance.",
+  "vector_dimension": 1536,
+  "version": 2
+}
