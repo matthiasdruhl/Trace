@@ -20,7 +20,7 @@ Against the active backlog in `docs/NEXT_STEPS.md`, the current status is:
 - step 1 (clarify the product story everywhere): complete
 - step 2 (build a strong demo surface): complete
 - step 3 (create a side-by-side proof of value): complete
-- step 4 (package benchmark and evaluation evidence for judges): partially complete
+- step 4 (package benchmark and evaluation evidence for judges): complete
 - step 5 (tighten deployment and operator documentation): partially complete
 - step 6 (harden deployed proof automation): partially complete
 - step 7 (add one memorable trust or explainability feature): not implemented yet
@@ -142,6 +142,19 @@ Boundary on these claims:
 - it does not prove that the deployed stack is equivalent to the local harness path
 - it should not be treated as proof of broad retrieval superiority outside the current corpus
 
+### Benchmark evidence packaging
+
+Implemented in `scripts/run_deployed_benchmark.py`,
+`scripts/package_benchmark_evidence.py`, `docs/BENCHMARK_EVIDENCE.md`,
+`fixtures/eval/benchmark_evidence_snapshot.json`, and `artifacts/benchmarks/`:
+
+- a dedicated deployed benchmark runner now records cold direct-Lambda samples, warm direct-Lambda samples, and warm deployed HTTP samples against the eval stack
+- the latest deployed benchmark artifact completed at `artifacts/benchmarks/20260428T195740Z`
+- that benchmark targeted stack `trace-eval`, dataset `s3://trace-vault/trace/eval/lance/`, function `trace-eval-trace-search`, architecture `arm64`, and configured memory `512` MB
+- the latest benchmark summary recorded direct-Lambda cold-sample median `Init Duration` `97.480` ms, direct-Lambda cold billed median `1728.000` ms, warm HTTP latency median `187.761` ms, warm reported `took_ms` median `92.000` ms, max memory used `82` MB, and estimated warm search-runtime cost `0.00000164` USD/query
+- the canonical Step 4 judge-facing packaging now lives in `docs/BENCHMARK_EVIDENCE.md`, with the same numbers mirrored in `fixtures/eval/benchmark_evidence_snapshot.json`
+- the cost notes are intentionally scoped to Lambda request cost, Lambda compute cost, and API Gateway HTTP request cost; query-embedding spend is excluded from the headline cost number
+
 ### Proof-of-value comparison pack
 
 Implemented in `scripts/build_proof_of_value.py`, `fixtures/eval/proof_of_value_cases.json`,
@@ -208,7 +221,7 @@ Deployed in AWS (`us-east-1`):
 
 ## What is not fully done
 
-- There are not yet benchmark artifacts for latency, memory footprint, or cost-per-query
+- Step 4 benchmark and evaluation evidence now exists, but the benchmark numbers remain scoped to the current eval stack and current labeled corpus rather than a broad benchmark suite
 - There is not yet a completed deployment history for smoke/eval stacks, although `docs/DEPLOYMENT_RUNBOOK.md` now documents that workflow
 
 ## Current repo guidance

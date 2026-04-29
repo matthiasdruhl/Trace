@@ -1,0 +1,94 @@
+{
+  "benchmark_summary_line": "On the deployed `trace-eval` eval stack, warm HTTP median latency was `187.761` ms, the search path reported median `took_ms` of `92.000` ms, and direct-Lambda cold samples recorded median `Init Duration` of `97.480` ms plus median billed duration of `1728.000` ms.",
+  "deployed_benchmark_evidence": {
+    "benchmark_case_ids": [
+      "unfiltered-demo",
+      "filtered-chi-insurance"
+    ],
+    "generated_at": "2026-04-28T19:57:40.920484+00:00",
+    "pricing": {
+      "api_gateway_http_request_price_per_million": 1.0,
+      "embedding_cost_included": false,
+      "lambda_gb_second_price": 1.33334e-05,
+      "lambda_request_price_per_million": 0.2,
+      "notes": "Estimate includes Lambda request cost, Lambda compute cost, and API Gateway HTTP API request cost only. It excludes query-embedding cost and outbound data transfer."
+    },
+    "report_path": "artifacts\\benchmarks\\20260428T195740Z\\benchmark.json",
+    "run_id": "20260428T195740Z",
+    "runtime_context": {
+      "configured_memory_mb": 512,
+      "dataset_uri": "s3://trace-vault/trace/eval/lance/",
+      "embedding_model": "text-embedding-3-small",
+      "function_architectures": [
+        "arm64"
+      ],
+      "function_arn": "arn:aws:lambda:us-east-1:055255093487:function:trace-eval-trace-search",
+      "function_name": "trace-eval-trace-search",
+      "query_dim": 1536,
+      "region": "us-east-1",
+      "search_url": "https://kqsqrljj11.execute-api.us-east-1.amazonaws.com/search",
+      "stack_name": "trace-eval"
+    },
+    "summary": {
+      "cold_init_median_ms": 97.48,
+      "cold_init_p95_ms": 98.443,
+      "cold_lambda_billed_median_ms": 1728.0,
+      "configured_memory_mb": 512,
+      "estimated_cold_cost_per_query_usd": 1.27200576e-05,
+      "estimated_warm_cost_per_query_usd": 1.6400022e-06,
+      "max_memory_used_mb": 82,
+      "warm_http_latency_median_ms": 187.7612999996927,
+      "warm_http_latency_p95_ms": 232.62508999978309,
+      "warm_lambda_billed_median_ms": 66.0,
+      "warm_took_median_ms": 92.0,
+      "warm_took_p95_ms": 123.40000000000003
+    }
+  },
+  "headline_claims": [
+    "Trace reached `1.000` average `Recall@k` and `1.000` filtered strict accuracy on the current labeled eval corpus.",
+    "`keyword_only` lagged at `0.250` average `Recall@k`, `0.150` average `Precision@k`, and `0.000` filtered strict accuracy on that same corpus."
+  ],
+  "notes": {
+    "scope_boundary": "Retrieval metrics are local evidence on the current labeled eval corpus. Benchmark metrics are deployed infra measurements on the eval stack. Neither should be described as broad benchmark superiority.",
+    "vector_postfilter": "vector_postfilter matched trace_prefilter_vector on the current corpus, but that tie is candidate-window-sensitive and is not promoted as the main judge-facing claim."
+  },
+  "retrieval_evidence": {
+    "case_count": 8,
+    "dataset_path": "C:\\Users\\matth\\Projects\\Trace\\Trace\\.test-tmp\\eval-seed\\uber_audit.lance",
+    "embedding_model": "text-embedding-3-small",
+    "evaluation_config": {
+      "postfilter_candidate_limit": null,
+      "postfilter_candidate_multiplier": 10
+    },
+    "generated_at": "2026-04-28T16:17:16.409246+00:00",
+    "keyword_only": {
+      "average_precision_at_k": 0.15000000000000002,
+      "average_recall_at_k": 0.25,
+      "filtered_query_strict_accuracy": 0.0
+    },
+    "provenance": {
+      "manifest_path": "C:\\Users\\matth\\Projects\\Trace\\Trace\\.test-tmp\\eval-seed\\uber_audit.seed-manifest.json",
+      "source_parquet_path": "C:\\Users\\matth\\Projects\\Trace\\Trace\\.test-tmp\\eval-seed\\uber_audit.source.parquet",
+      "validation_cases_path": "C:\\Users\\matth\\Projects\\Trace\\Trace\\fixtures\\eval\\local_validation_cases.json",
+      "validation_generated_at": "2026-04-23T22:58:23.412869+00:00",
+      "validation_report_path": "C:\\Users\\matth\\Projects\\Trace\\Trace\\.test-tmp\\eval-seed\\uber_audit.eval-validation.json"
+    },
+    "report_path": "artifacts\\evaluations\\20260428T161716Z\\report.json",
+    "run_id": "20260428T161716Z",
+    "trace": {
+      "average_precision_at_k": 0.6,
+      "average_recall_at_k": 1.0,
+      "filtered_query_strict_accuracy": 1.0
+    },
+    "vector_postfilter": {
+      "average_precision_at_k": 0.6,
+      "average_recall_at_k": 1.0,
+      "filtered_query_strict_accuracy": 1.0
+    }
+  },
+  "source_artifacts": [
+    "artifacts\\evaluations\\20260428T161716Z\\report.json",
+    "artifacts\\benchmarks\\20260428T195740Z\\benchmark.json"
+  ],
+  "version": 1
+}

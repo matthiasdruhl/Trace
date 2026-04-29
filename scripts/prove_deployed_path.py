@@ -30,16 +30,35 @@ from proof_mcp_stdio import (  # noqa: E402
     default_bridge_entry,
     run_search_cold_archive,
 )
+from trace_runtime import (  # noqa: E402
+    DEFAULT_QUERY_VECTOR_DIM,
+    RuntimeContext,
+    TraceRuntimeError,
+    _describe_stack,
+    _maybe_int,
+    _stack_output,
+    assert_response_query_dim as shared_assert_response_query_dim,
+    build_http_payload as shared_build_http_payload,
+    call_search_http as shared_call_search_http,
+    deployed_api_auth_mode_from_stack_parameters,
+    ensure_dir,
+    make_run_id,
+    repo_root_from_args,
+    resolve_query_vector,
+    resolve_runtime_context,
+    utc_now,
+    write_json as shared_write_json,
+)
 
 
 DEFAULT_CASES_PATH = Path("fixtures/deployed/golden_cases.json")
 DEFAULT_ARTIFACTS_ROOT = Path("artifacts/validation-runs")
 DEFAULT_TIMEOUT_SECONDS = 30
-DEFAULT_QUERY_VECTOR_DIM = 1536
 STABLE_FIXTURES_DIR = Path("fixtures/deployed/examples")
 SCRUBBED_URL_PLACEHOLDER = "https://search.example.invalid/search"
 EVAL_STACK_NAME = "trace-eval"
 EVAL_DATASET_URI = "s3://trace-vault/trace/eval/lance/"
+ProofPathError = TraceRuntimeError
 
 
 def validate_run_flags(args: argparse.Namespace) -> None:
@@ -163,19 +182,6 @@ class GoldenCase:
 
 
 @dataclass
-class RuntimeContext:
-    stack_name: str | None
-    region: str | None
-    search_url: str
-    dataset_uri: str | None
-    api_key: str | None
-    embedding_model: str | None
-    query_dim: int
-    api_auth_mode: str
-    local_api_key_supplied: bool
-
-
-@dataclass
 class CaseResult:
     case_id: str
     http_ok: bool = False
@@ -196,10 +202,6 @@ class RunManifest:
     embedding_model: str | None
     query_dim: int
     cases: list[dict[str, Any]] = field(default_factory=list)
-
-
-class ProofPathError(RuntimeError):
-    """Raised when the proof runner cannot proceed or a case fails validation."""
 
 
 def parse_args() -> argparse.Namespace:
@@ -639,29 +641,21 @@ def resolve_case_vector(
     *,
     mock_embeddings: bool,
 ) -> list[float] | None:
-    if case.query_vector is not None:
-        if len(case.query_vector) != ctx.query_dim:
-            raise ProofPathError(
-                f"Case {case.case_id} has query_vector length {len(case.query_vector)}; "
-                f"expected {ctx.query_dim}."
-            )
-        return [float(x) for x in case.query_vector]
-
-    return embed_query_text(
-        case.query_text,
-        model=ctx.embedding_model or "text-embedding-3-small",
-        dim=ctx.query_dim,
-        mock=mock_embeddings,
+    return resolve_query_vector(
+        query_text=case.query_text,
+        explicit_query_vector=case.query_vector,
+        ctx=ctx,
+        mock_embeddings=mock_embeddings,
     )
 
 
 def build_http_payload(case: GoldenCase, query_vector: list[float]) -> dict[str, Any]:
-    return {
-        "query_vector": query_vector,
-        "limit": case.limit,
-        "sql_filter": case.sql_filter,
-        "include_text": case.include_text,
-    }
+    return shared_build_http_payload(
+        query_vector=query_vector,
+        limit=case.limit,
+        sql_filter=case.sql_filter,
+        include_text=case.include_text,
+    )
 
 
 def call_search_http(
@@ -670,29 +664,7 @@ def call_search_http(
     api_key: str | None,
     timeout_seconds: int,
 ) -> dict[str, Any]:
-    body = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(
-        search_url,
-        data=body,
-        method="POST",
-        headers={"Content-Type": "application/json"},
-    )
-    if api_key:
-        req.add_header("X-TRACE-API-KEY", api_key)
-
-    try:
-        with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        raw = exc.read().decode("utf-8", errors="replace")
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError as err:
-            raise ProofPathError(
-                f"HTTP search failed with status {exc.code} and a non-JSON body: {err}"
-            ) from exc
-    except urllib.error.URLError as exc:
-        raise ProofPathError(f"HTTP search failed: {exc}") from exc
+    return shared_call_search_http(search_url, payload, api_key, timeout_seconds)
 
 
 def _extract_eq_filters(sql_filter: str) -> dict[str, list[str]]:
@@ -758,23 +730,7 @@ def assert_http_case(case: GoldenCase, response: dict[str, Any]) -> None:
 
 
 def assert_response_query_dim(response: dict[str, Any], expected: int) -> None:
-    if response.get("ok") is not True:
-        return
-    if "query_dim" not in response:
-        raise ProofPathError(
-            "Successful response is missing required field 'query_dim' "
-            f"(expected integer {expected}; see docs/API_CONTRACT.md)."
-        )
-    qd = response["query_dim"]
-    if isinstance(qd, bool) or not isinstance(qd, int):
-        raise ProofPathError(
-            "Successful response field 'query_dim' must be a JSON integer "
-            f"(expected {expected}), got {type(qd).__name__} with value {qd!r}."
-        )
-    if qd != expected:
-        raise ProofPathError(
-            f"Response query_dim={qd} does not match expected runtime dimension {expected}."
-        )
+    shared_assert_response_query_dim(response, expected)
 
 
 def stable_response_view(response: dict[str, Any]) -> dict[str, Any]:
@@ -811,7 +767,7 @@ def scrub_value(obj: Any, *, scrub_urls: bool) -> Any:
 
 
 def write_json(path: Path, payload: Any) -> None:
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    shared_write_json(path, payload)
 
 
 def write_case_artifacts(

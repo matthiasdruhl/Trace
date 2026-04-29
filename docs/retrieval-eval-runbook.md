@@ -91,7 +91,7 @@ make the pass condition explicit.
 The latest local Step 4 acceptance run in this workspace is:
 
 ```text
-artifacts/evaluations/20260424T062035Z/
+artifacts/evaluations/20260428T161716Z/
 ```
 
 Reference configuration from that run:
@@ -102,7 +102,7 @@ Reference configuration from that run:
 Aggregate metrics from that run:
 
 - `trace_prefilter_vector`: average `Recall@k = 1.000`, average `Precision@k = 0.600`, filtered strict accuracy `1.000`
-- `keyword_only`: average `Recall@k = 0.238`, average `Precision@k = 0.143`, filtered strict accuracy `0.500`
+- `keyword_only`: average `Recall@k = 0.250`, average `Precision@k = 0.150`, filtered strict accuracy `0.000`
 - `vector_postfilter`: average `Recall@k = 1.000`, average `Precision@k = 0.600`, filtered strict accuracy `1.000`
 
 ## Interpretation
