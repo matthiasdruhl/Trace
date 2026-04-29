@@ -47,7 +47,7 @@ an explainable handoff instead of a generic search result page.
 
 ## Proof Of Value
 
-The committed Step 3 proof pack lives in
+The committed proof-of-value pack lives in
 [docs/PROOF_OF_VALUE.md](C:/Users/matth/Projects/Trace/Trace/docs/PROOF_OF_VALUE.md).
 It packages two selected local comparison artifacts from the retrieval harness:
 
@@ -60,6 +60,12 @@ not proof of deployed-path equivalence or a broad benchmark. The same local
 report also evaluates `vector_postfilter`; on the current labeled corpus it
 matches `trace_prefilter_vector`, so the proof pack is intentionally showing two
 selected failure modes rather than claiming that every non-Trace baseline loses.
+
+For deployed Step 3 completion evidence, use
+[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+and
+[docs/deployed-proof-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/deployed-proof-runbook.md),
+which define the required full proof run against `trace-eval`.
 
 ## Evidence
 
@@ -130,12 +136,22 @@ search API key stay server-side in the Node app API.
 - `docs/`: active reference docs plus a `deprecated/` archive for superseded planning material
 - `template.yaml`: SAM deployment template for the Lambda and HTTP API
 
+## Operator paths
+
+Use the active docs this way:
+
+- first-time search/eval setup, dataset refresh, stack rollout, deployed proof rerun entrypoint, and rollback: [docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+- live browser app deploys, frontend publish, and app-specific smoke checks: [docs/WEB_APP_DEPLOYMENT.md](C:/Users/matth/Projects/Trace/Trace/docs/WEB_APP_DEPLOYMENT.md)
+- deployed proof flags, acceptance rules, useful flags, and artifact review after you start from the deployment runbook: [docs/deployed-proof-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/deployed-proof-runbook.md)
+- local retrieval relevance evaluation and metric interpretation: [docs/retrieval-eval-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/retrieval-eval-runbook.md)
+- local OpenAI credential setup for embedding-backed workflows: [docs/OPENAI_API_KEY_SETUP.md](C:/Users/matth/Projects/Trace/Trace/docs/OPENAI_API_KEY_SETUP.md)
+
 ## Run the production app locally
 
-The currently supported local browser workflow is:
+Use this path when you want the React UI locally but still want the browser to
+hit a deployed Trace app API.
 
-1. Use a deployed Trace app base URL for the app API origin. Read
-   `AppApiBaseUrl` from the deployed stack outputs and set
+1. Read `AppApiBaseUrl` from the deployed stack outputs and set
    `VITE_TRACE_API_BASE_URL` to that origin only, without an added `/api`
    suffix. The frontend app appends `/api/search`, `/api/cases`, and
    `/api/health` itself.
@@ -149,180 +165,62 @@ npm install
 npm run dev
 ```
 
-3. For app API changes, validate the Node code and the deploy packaging path
-   separately. `sam build` now packages the app API directly from
-   `mcp-bridge/src/app-api.ts` as a CommonJS Lambda bundle, but AWS SAM's
-   `NodejsNpmEsbuildBuilder` requires `esbuild` on the host machine first:
-
-```bash
-npm install --global esbuild
-cd mcp-bridge
-npm install
-npm test
-cd ..
-sam build --beta-features
-```
-
+For app API packaging checks, frontend publishing, CloudFront invalidation, and
+app-specific troubleshooting, use
+[docs/WEB_APP_DEPLOYMENT.md](C:/Users/matth/Projects/Trace/Trace/docs/WEB_APP_DEPLOYMENT.md).
 `sam local start-api` is not the supported `/api/*` workflow for this branch.
-The public app API routes are created with explicit API Gateway v2 integration
-resources, and the deployed `/api/*` shape also depends on the CloudFront
-distribution in `template.yaml`. Use a deployed stack for browser-level `/api/*`
-testing, and use `npm test` plus `sam build --beta-features` to validate app
-API code changes locally.
 
 ## Deploy the production app
 
-`template.yaml` provisions the frontend bucket, CloudFront distribution, Rust
-search Lambda, and Node app API, but the SPA publish step is still explicit:
-build `demo-ui/`, sync `demo-ui/dist` to the provisioned S3 bucket, and then
-invalidate CloudFront so the new assets go live.
+Use
+[docs/WEB_APP_DEPLOYMENT.md](C:/Users/matth/Projects/Trace/Trace/docs/WEB_APP_DEPLOYMENT.md)
+as the canonical browser app deployment guide.
 
-1. Build and deploy the stack. Install `esbuild` once on the deployment
-   machine, then run SAM. `sam build --beta-features` packages both the Rust
-   Lambda and the Node app API from source, so a pre-existing
-   `mcp-bridge/dist/` directory is not required:
+That guide owns:
 
-```bash
-npm install --global esbuild
-sam build --beta-features
-sam deploy --stack-name <stack-name> --region <region> --capabilities CAPABILITY_IAM --resolve-s3
-```
+- frontend-only deploys with `scripts/deploy-frontend.ps1`
+- full-stack app deploys with `scripts/deploy-full.ps1`
+- post-publish root, health, and `/api/search` smoke checks
+- app-specific troubleshooting and emergency override guidance
 
-2. Read these stack outputs:
-
-- `AppUrl`: investigator-facing CloudFront URL
-- `AppApiBaseUrl`: value to use for `VITE_TRACE_API_BASE_URL`
-- `FrontendBucketName` or `FrontendPublishS3Uri`: publish target for `demo-ui/dist`
-- `TraceAppDistributionId`: CloudFront distribution ID for invalidation
-
-3. Build the SPA against the deployed CloudFront origin. Do not append `/api`
-   to `VITE_TRACE_API_BASE_URL`:
-
-```bash
-set VITE_TRACE_API_BASE_URL=https://<cloudfront-domain>
-cd demo-ui
-npm install
-npm run build
-```
-
-4. Publish the built SPA and invalidate CloudFront:
-
-```bash
-aws s3 sync demo-ui/dist s3://<frontend-bucket-name>/ --delete
-aws cloudfront create-invalidation --distribution-id <distribution-id> --paths "/*"
-```
-
-If you skip the sync and invalidation step, the deployed stack has working
-infra but no updated frontend artifact.
-
-For the current one-command PowerShell deploy helpers and the web app update
-workflow, see
-[docs/WEB_APP_DEPLOYMENT.md](C:/Users/matth/Projects/Trace/Trace/docs/WEB_APP_DEPLOYMENT.md).
-That guide also documents the current plain-text OpenAI secret convention and
-the built-in post-deploy `/api/search` smoke check.
+Use
+[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+for dataset generation, eval stack rollout, deployed proof rerun entrypoints, and rollback of
+the search/eval environments.
 
 ## Quick start
 
-### 1. Seed a local dataset
+Use the path that matches the job:
 
-`scripts/seed.py` now generates a deterministic synthetic source corpus, writes
-`<output_dir>/<table>.source.parquet` and
-`<output_dir>/<table>.seed-manifest.json`, and supports two explicit vector
-modes:
+1. Set up a local OpenAI key for embedding-backed workflows:
+   [docs/OPENAI_API_KEY_SETUP.md](C:/Users/matth/Projects/Trace/Trace/docs/OPENAI_API_KEY_SETUP.md)
+2. Run the end-to-end search/eval operator flow:
+   [docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+3. Publish or update the browser app:
+   [docs/WEB_APP_DEPLOYMENT.md](C:/Users/matth/Projects/Trace/Trace/docs/WEB_APP_DEPLOYMENT.md)
+4. Run the local retrieval relevance harness:
+   [docs/retrieval-eval-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/retrieval-eval-runbook.md)
+5. Start deployed proof reruns in:
+   [docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+6. Use detailed proof acceptance and artifact review guidance from:
+   [docs/deployed-proof-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/deployed-proof-runbook.md)
 
-- `openai` (default): real embeddings for eval/demo datasets
-- `random`: deterministic smoke/infra vectors only
-
-Install Python dependencies:
-
-```bash
-pip install -r scripts/requirements.txt -c scripts/constraints.txt
-```
-
-Generate a small random-vector smoke dataset:
-
-```bash
-python scripts/seed.py --embedding-mode random --rows 2000 --output-dir _smoke_lance_seed --force
-```
-
-Generate the default embedding-backed local dataset:
-
-```bash
-set OPENAI_API_KEY=...
-python scripts/seed.py --force
-```
-
-The default run uses `text-embedding-3-small` and keeps the dataset at 1536
-dimensions to match the current Lambda and MCP bridge expectations.
-
-Validate the embedding-backed local eval dataset before upload:
-
-```bash
-set OPENAI_API_KEY=...
-python scripts/validate_eval_dataset.py --output-dir lance_seed --table-name uber_audit
-```
-
-That command runs a small curated set of local query and filtered-query sanity
-cases from `fixtures/eval/local_validation_cases.json`, writes
-`<output_dir>/<table>.eval-validation.json`, and records the latest validation
-summary back into the seed manifest for auditability before S3 promotion. The
-current validator is a local gate for an `openai` manifest, manifest/query
-model alignment, `1536`-dimension consistency, the repo's restricted
-`sql_filter` syntax, and a few expected retrieval patterns; it is not a full
-relevance harness, benchmark corpus, or proof of deployed-path equivalence.
-
-Run the local retrieval relevance harness:
-
-```bash
-set OPENAI_API_KEY=...
-python scripts/evaluate_retrieval.py --output-dir .test-tmp/eval-seed --table-name uber_audit --cases-path fixtures/eval/retrieval_relevance_cases.json
-```
-
-That command scores three local methods on a small labeled corpus:
-
-- the harness's local `trace_prefilter_vector` method
-- a keyword-only lexical baseline
-- a `vector_postfilter` baseline that retrieves a configurable candidate pool
-  before applying the filter in Python
-
-Before scoring, the harness validates that every labeled `incident_id` exists
-in the source dataset and that filtered-case labels satisfy the case filter.
-It then writes a JSON report plus a Markdown summary under
-`artifacts/evaluations/<run_id>/`.
-
-This is local retrieval evidence only. It does not prove deployed-path
-equivalence, and it should not be treated as a broad retrieval benchmark beyond
-the small local labeled corpus.
-
-Generated outputs under the selected `output_dir` such as `lance_seed/`,
-`_smoke_lance_seed/`, `<table>.source.parquet`, and
-`<table>.seed-manifest.json` should remain untracked.
-
-Current local status:
-
-- a fresh embedding-backed local eval dataset has been generated under `.test-tmp/eval-seed/`
-- the corresponding local validation run passed `7/7` curated cases
-- the committed Step 3 proof pack in [docs/PROOF_OF_VALUE.md](C:/Users/matth/Projects/Trace/Trace/docs/PROOF_OF_VALUE.md) is the approved stable artifact for the selected side-by-side comparisons
-- the canonical Step 4 benchmark and evaluation summary now lives in [docs/BENCHMARK_EVIDENCE.md](C:/Users/matth/Projects/Trace/Trace/docs/BENCHMARK_EVIDENCE.md)
-- the eval dataset is now uploaded to `s3://trace-vault/trace/eval/lance/`
-- the smoke stack `trace-smoke` is deployed in `us-east-1`
-- the eval stack `trace-eval` is deployed in `us-east-1`
-- the latest deployed benchmark artifact lives under `artifacts/benchmarks/20260428T190704Z/`
-
-### 2. Validate the Rust Lambda
+### Local component checks
 
 ```bash
 cd lambda-engine
 cargo test
 ```
 
-### 3. Build the MCP bridge
-
 ```bash
 cd mcp-bridge
 npm install
 npm run build
 ```
+
+For detailed dataset generation, local validation, S3 promotion, and deployed
+proof rerun entrypoints, use the deployment runbook instead of treating the README as
+a second procedure guide.
 
 ## Runtime configuration
 
@@ -359,14 +257,20 @@ Important MCP bridge environment variables:
 
 ## Proof tooling
 
-The repo now includes deployed-proof tooling for the later end-to-end validation milestone:
+The repo includes deployed-proof tooling for end-to-end validation:
 
 - `scripts/prove_deployed_path.py`: validates deployed `POST /search` and MCP traversal, writes per-run artifacts, and can promote scrubbed stable fixtures
 - `scripts/proof_mcp_stdio.py`: stdio JSON-RPC helper for exercising `mcp-bridge` as a subprocess from the proof runner
 - `fixtures/deployed/golden_cases.json`: proof-oriented golden cases
 - `fixtures/deployed/examples/`: committed location for stable scrubbed examples
 
-Current status:
+Use
+[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+for the canonical deployed proof rerun entrypoint, then use
+[docs/deployed-proof-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/deployed-proof-runbook.md)
+for proof flags, acceptance rules, useful flags, and artifact review.
+
+Current trusted proof context:
 
 - the proof runner and tests are implemented
 - the current smoke dataset is `s3://trace-vault/uber_audit.lance/`
@@ -383,15 +287,17 @@ Current status:
 - `docs/COMPETITION_STRATEGY.md`: rubric-optimized plan for maximizing Handshake x OpenAI Codex Creator Challenge scoring
 - `docs/DATA_SPEC.md`: synthetic dataset schema and seed script behavior
 - `docs/DEMO_PLAN.md`: recommended live-demo structure, memorable queries, and proof points
-- `docs/DEPLOYMENT_RUNBOOK.md`: smoke/eval stack deployment, proof validation, and rollback checklist
+- `docs/DEPLOYMENT_RUNBOOK.md`: canonical search/eval operator path for dataset refresh, stack rollout, deployed proof rerun entrypoint, and rollback
+- `docs/OPENAI_API_KEY_SETUP.md`: local embedding credential setup reference
 - `docs/PERSONA.md`: primary user persona and product framing anchor
-- `docs/deployed-proof-runbook.md`: how to run the deployed proof path and interpret artifacts
+- `docs/deployed-proof-runbook.md`: proof flags, acceptance rules, useful flags, and artifact interpretation after starting from the deployment runbook
 - `docs/PITCH_VIDEO_PLAN.md`: three-minute finalist pitch structure and asset checklist
 - `docs/PROJECT_STATE.md`: current implementation snapshot
 - `docs/NEXT_STEPS.md`: active prioritized backlog
-- `docs/retrieval-eval-runbook.md`: how to run the local labeled relevance harness and interpret its metrics
-- `docs/S3_MIGRATION.md`: current smoke-vs-eval S3 migration plan and actual migration status
+- `docs/retrieval-eval-runbook.md`: local labeled relevance harness execution and metric interpretation
+- `docs/S3_MIGRATION.md`: smoke-vs-eval dataset roles, prefix rules, and migration safety notes
 - `docs/RUST_CRATE_DOCS.md`: external Rust dependency documentation index
+- `docs/WEB_APP_DEPLOYMENT.md`: browser app publish, app smoke checks, and app-specific troubleshooting
 - `docs/features/deployed-proof-path.md`: feature spec for the deployed proof-path implementation
 
 Superseded planning docs and older README/state snapshots are preserved in `docs/deprecated/` with timestamped filenames.

@@ -1,11 +1,15 @@
 # Trace S3 migration guide
 
-Last updated: 2026-04-24
+Last updated: 2026-04-29
+
+Use [docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+for the full operator flow. This document is only the reference for smoke-vs-eval
+dataset roles, prefix rules, and migration safety.
 
 ## Purpose
 
 This document records the current smoke-versus-eval S3 layout for Trace and
-the rules operators should follow when refreshing or replacing datasets.
+the reference summary for dataset roles and migration safety.
 
 ## Current AWS layout
 
@@ -55,9 +59,10 @@ Use `s3://trace-vault/trace/eval/lance/` for:
 - local-versus-deployed evaluation discussion
 - honest semantic retrieval demos
 
-## Operator rules
+## Reference summary
 
-Follow these rules whenever datasets change:
+Use these rules as the quick reference after you have already followed the
+authoritative refresh or promotion workflow in `docs/DEPLOYMENT_RUNBOOK.md`:
 
 - keep the smoke dataset at `s3://trace-vault/uber_audit.lance/`
 - keep eval data at a separate prefix from smoke data
@@ -82,5 +87,6 @@ These are still important, but they are no longer migration blockers:
 - expanded relevance evaluation coverage
 - additional operator and release-process hardening
 
-Use `docs/NEXT_STEPS.md`, `docs/deployed-proof-runbook.md`, and
-`docs/retrieval-eval-runbook.md` for the current follow-on work.
+Use `docs/NEXT_STEPS.md` for follow-on work,
+`docs/deployed-proof-runbook.md` for proof-specific artifact rules, and
+`docs/retrieval-eval-runbook.md` for local retrieval evaluation only.

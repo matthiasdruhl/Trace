@@ -177,19 +177,20 @@ Recommended output:
 
 ## 4. Package benchmark and evaluation evidence for judges
 
-Status: `Partially complete`
+Status: `Complete`
 
 Why this matters:
 
-- Trace already has useful local relevance evidence, but it is not yet packaged into memorable claims
 - judges need a few quotable numbers, not just runbooks
+- Trace is stronger when retrieval quality, latency, memory, and cost claims are packaged in one bounded evidence pack
 
-What to do:
+What shipped:
 
-- extract one or two simple retrieval-eval claims from the local harness
-- add benchmark evidence for cold start, warm latency, memory, and cost-per-query
-- clearly separate smoke/infra measurements from semantic-quality evidence
-- summarize the methodology in one compact doc or README section
+- the canonical Step 4 evidence pack now lives in `docs/BENCHMARK_EVIDENCE.md`
+- the machine-readable snapshot now lives in `fixtures/eval/benchmark_evidence_snapshot.json`
+- the local retrieval harness now contributes repeatable headline claims scoped to the current labeled eval corpus
+- the deployed benchmark path now packages cold-start, warm latency, memory, and cost-per-query evidence for the current `trace-eval` stack
+- the evidence pack clearly separates smoke and infra measurements from semantic-quality claims and summarizes the current methodology compactly
 
 Definition of done:
 
@@ -203,6 +204,12 @@ Recommended output:
 - one short "what we measured" table
 - one short "what the current numbers mean" paragraph
 
+Current note:
+
+- Step 4 is complete in this workspace
+- the next active backlog item is Step 5: tighten deployment and operator documentation
+- keep the current Step 4 wording bounded to the active eval stack and current labeled corpus rather than broad benchmark claims
+
 ## 5. Tighten deployment and operator documentation
 
 Status: `Partially complete`
@@ -211,6 +218,11 @@ Why this matters:
 
 - the current repo has the right ingredients, but the operator story is still spread across several docs
 - this supports execution quality and reduces demo risk
+
+Current note:
+
+- the repo already has active guidance in `README.md`, `docs/DEPLOYMENT_RUNBOOK.md`, `docs/WEB_APP_DEPLOYMENT.md`, `docs/deployed-proof-runbook.md`, `docs/retrieval-eval-runbook.md`, `docs/S3_MIGRATION.md`, and `docs/OPENAI_API_KEY_SETUP.md`
+- Step 5 remains open because those docs still need tighter consolidation, less duplication, and a clearer single operator path
 
 What to do:
 

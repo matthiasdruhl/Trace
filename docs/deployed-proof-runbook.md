@@ -1,25 +1,38 @@
 # Deployed proof path (operator runbook)
 
-Last updated: 2026-04-24
+Last updated: 2026-04-29
 
 This runbook covers the deployed-proof workflow: prove the deployed Trace stack
 with direct `POST /search` and the MCP bridge tool `search_cold_archive`, and
 capture artifacts under `artifacts/validation-runs/`.
 
-Full scope and deferred work are defined in [features/deployed-proof-path.md](features/deployed-proof-path.md).
+Full scope and deferred work are defined in
+[features/deployed-proof-path.md](features/deployed-proof-path.md).
 
-## S3 datasets: smoke vs eval (trace-vault)
+Use
+[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+for first-time stack creation, dataset refresh, redeploys, and rollback. Use
+that runbook as the canonical rerun entrypoint. Use this document only after
+you have started from the deployment workflow and need proof-specific flags,
+acceptance rules, artifact interpretation, or stable fixture promotion.
 
-The shared bucket **`trace-vault`** holds a **random-vector smoke dataset** at **`s3://trace-vault/uber_audit.lance/`** (old random-vector seed script). Treat it as **smoke / infra only**—**not** eval data and **not** proof of semantic retrieval quality.
+## Dataset context reference
+
+Use
+[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+for the authoritative dataset refresh, promotion, and rollout workflow. This
+section is only a proof-specific reference for dataset roles.
 
 | Role | URI | Operator rule |
 | --- | --- | --- |
-| **Random-vector smoke / infra** | `s3://trace-vault/uber_audit.lance/` | **Preserve** at this prefix. Do **not** move this tree into `trace/eval/lance/`, do **not** overwrite it in place for “migration,” and do **not** describe it as eval data. **Rollback** = repoint stack/Lambda back to this URI. |
+| **Random-vector smoke / infra** | `s3://trace-vault/uber_audit.lance/` | **Preserve** at this prefix. Do **not** move this tree into `trace/eval/lance/`, do **not** overwrite it in place for "migration", and do **not** describe it as eval data. **Rollback** = repoint stack/Lambda back to this URI. |
 | **Embedding-backed eval** | `s3://trace-vault/trace/eval/lance/` | Generate locally, upload **new** embedding-backed objects here, **validate**, **then** repoint Lambda / stack config from smoke to this prefix. |
 
-Full migration sequence (preserve → label smoke → local eval build → upload → validate → repoint → keep smoke for rollback) and **why a new prefix is safer than in-place mutation** (cache/cutover clarity) are in [S3_MIGRATION.md](S3_MIGRATION.md) (*Operator sequence (trace-vault → embedding eval)*).
+The current proof-safe rule is simple:
 
-Until you cut over, a deployed stack may still point at **`uber_audit.lance/`**; the proof runner remains valid for **path** verification (`POST /search`, filters, MCP). Golden cases are **not** retrieval-quality benchmarks—see [features/deployed-proof-path.md](features/deployed-proof-path.md#golden-cases).
+- use `trace-eval` and `s3://trace-vault/trace/eval/lance/` for accepted Step 3 evidence
+- treat `s3://trace-vault/uber_audit.lance/` as smoke-only or rollback-only context
+- use [S3_MIGRATION.md](S3_MIGRATION.md) only for the reference summary of smoke-vs-eval dataset roles
 
 Current state:
 
@@ -41,13 +54,25 @@ Current state:
 
 ## Resolve context
 
-The proof runner can pull **SearchUrl** (and dataset URI from stack parameters) from CloudFormation when you pass **`--stack-name`** and a **region** (`--region` or `AWS_REGION`).
+The proof runner can pull **SearchUrl** (and dataset URI from stack parameters)
+from CloudFormation when you pass **`--stack-name`** and a **region**
+(`--region` or `AWS_REGION`).
 
-You can override the search URL with **`--search-url`** / `TRACE_SEARCH_URL`. The manifest still needs a **dataset URI**: use **`--dataset-uri`** / `TRACE_LANCE_S3_URI`, or rely on stack parameters `TraceDataBucketName` + `TraceLancePrefix`.
+You can override the search URL with **`--search-url`** /
+`TRACE_SEARCH_URL`. The manifest still needs a **dataset URI**: use
+**`--dataset-uri`** / `TRACE_LANCE_S3_URI`, or rely on stack parameters
+`TraceDataBucketName` + `TraceLancePrefix`.
 
-If `TraceSearchFunctionArn` is present on the stack, the runner reads **`TRACE_QUERY_VECTOR_DIM`** from the deployed Lambda so the proof script matches runtime dimension expectations.
+If `TraceSearchFunctionArn` is present on the stack, the runner reads
+**`TRACE_QUERY_VECTOR_DIM`** from the deployed Lambda so the proof script
+matches runtime dimension expectations.
 
-## Run the proof
+## Command reference
+
+The canonical rerun entrypoint lives in
+[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md).
+The examples here are reference forms for interpreting or customizing a proof
+run after you have already entered the deployed proof workflow.
 
 From the repository root:
 
@@ -58,21 +83,23 @@ python scripts/prove_deployed_path.py \
   --repo-root .
 ```
 
-Or with explicit URLs (no stack lookup):
+Or with explicit eval-stack settings (no stack lookup):
 
 ```bash
-set TRACE_LANCE_S3_URI=s3://trace-vault/uber_audit.lance/
+set TRACE_LANCE_S3_URI=s3://trace-vault/trace/eval/lance/
 set TRACE_SEARCH_URL=https://xxxx.execute-api.us-east-1.amazonaws.com/search
 set OPENAI_API_KEY=...
 python scripts/prove_deployed_path.py --repo-root .
 ```
 
-Use the URI your stack actually reads (smoke: `s3://trace-vault/uber_audit.lance/`; after eval upload and cutover: `s3://trace-vault/trace/eval/lance/`). For other buckets, substitute bucket and prefix accordingly.
+For accepted Step 3 evidence, use the eval dataset URI and the `trace-eval`
+stack context. Use smoke dataset settings only for structural debugging or
+rollback-only scenarios, not for accepted proof completion claims.
 
 ## What counts as Step 3 acceptance
 
-Claim Step 3 completion only from a full proof run against the eval stack or eval
-dataset URI. The acceptable path is:
+Claim Step 3 completion only from a full proof run against the eval stack or
+eval dataset URI. The acceptable path is:
 
 - no `--dry-run`
 - no `--skip-mcp`
@@ -84,8 +111,8 @@ dataset URI. The acceptable path is:
   deployed runtime expectation
 - proof-level filter checks pass for cases that set `require_filter_match=true`
 
-The runner also supports degraded or scaffold modes, but they do not satisfy Step
-3 acceptance on their own:
+The runner also supports degraded or scaffold modes, but they do not satisfy
+Step 3 acceptance on their own:
 
 - `--dry-run`: loads cases and resolves runtime context only; no HTTP or MCP calls
 - `--skip-mcp`: validates only the direct HTTP path
@@ -125,7 +152,10 @@ Use this as the repeatable acceptance path for the deployed-proof milestone:
 5. Review the scrubbed outputs under `fixtures/deployed/examples/` and confirm they omit raw vectors, volatile timing fields, request IDs, and environment-specific URLs.
 6. Commit only explicitly selected, representative fixtures from the eval dataset path `s3://trace-vault/trace/eval/lance/`; do not promote examples from the smoke dataset or rely on any default representative-case policy.
 
-Step 3 is considered satisfied only when all golden cases pass direct HTTP and MCP validation in the same full run, `query_dim` matches the deployed runtime, and proof-level filter checks pass for cases that set `require_filter_match=true`.
+Step 3 is considered satisfied only when all golden cases pass direct HTTP and
+MCP validation in the same full run, `query_dim` matches the deployed runtime,
+and proof-level filter checks pass for cases that set
+`require_filter_match=true`.
 
 ### Useful flags
 
@@ -146,7 +176,9 @@ Each run writes:
 - `artifacts/validation-runs/<run_id>/http/<case_id>.request.json` and `.response.json`
 - `artifacts/validation-runs/<run_id>/mcp/<case_id>.request.json` and `.response.json`
 
-Stable promoted examples (optional): `fixtures/deployed/examples/http_<case_id>.json` and `mcp_<case_id>.json` with volatile fields removed or replaced (for example `took_ms`, request ids, real URLs).
+Stable promoted examples (optional): `fixtures/deployed/examples/http_<case_id>.json`
+and `mcp_<case_id>.json` with volatile fields removed or replaced (for example
+`took_ms`, request ids, real URLs).
 
 Promotion guardrails:
 
@@ -178,11 +210,25 @@ These examples are proof fixtures, not ranking-quality benchmarks.
 
 ## Golden cases
 
-Cases live in `fixtures/deployed/golden_cases.json`. They are **proof-oriented** (non-empty results, optional post-hoc checks on returned rows), not retrieval-quality evaluation.
+Cases live in `fixtures/deployed/golden_cases.json`. They are **proof-oriented**
+(non-empty results, optional post-hoc checks on returned rows), not
+retrieval-quality evaluation.
 
-**`require_filter_match`:** When true, the runner only checks that each result row's `city_code` and `doc_type` match **equality** conditions of the form `field = 'literal'` found in the case's `sql_filter` string (quoted literals, `''` escape supported). It does **not** re-validate the full `sql_filter` grammar ([`sql_filter` in API_CONTRACT.md](API_CONTRACT.md#sql_filter-grammar)); the Lambda still enforces that. The proof runner does **not** assert `IN (...)`, ranges, `OR` / `NOT`, or other shapes. Cases that rely on those operators should keep `require_filter_match` false and still prove the path by sending the filter and requiring non-empty results (see `filtered-doc-type-in` in the golden fixture).
+**`require_filter_match`:** When true, the runner only checks that each result
+row's `city_code` and `doc_type` match **equality** conditions of the form
+`field = 'literal'` found in the case's `sql_filter` string (quoted literals,
+`''` escape supported). It does **not** re-validate the full `sql_filter`
+grammar ([`sql_filter` in API_CONTRACT.md](API_CONTRACT.md#sql_filter-grammar));
+the Lambda still enforces that. The proof runner does **not** assert
+`IN (...)`, ranges, `OR` / `NOT`, or other shapes. Cases that rely on those
+operators should keep `require_filter_match` false and still prove the path by
+sending the filter and requiring non-empty results (see
+`filtered-doc-type-in` in the golden fixture).
 
 ## Assumptions
 
-- The MCP bridge is invoked via **stdio** using the same newline-delimited JSON-RPC as the official MCP SDK (see `scripts/proof_mcp_stdio.py`).
-- Operators building the bridge once per machine is acceptable; CI that only unit-tests scrubbing/parsing does not need a built `dist/` unless exercising MCP integration.
+- The MCP bridge is invoked via **stdio** using the same newline-delimited
+  JSON-RPC as the official MCP SDK (see `scripts/proof_mcp_stdio.py`).
+- Operators building the bridge once per machine is acceptable; CI that only
+  unit-tests scrubbing/parsing does not need a built `dist/` unless exercising
+  MCP integration.

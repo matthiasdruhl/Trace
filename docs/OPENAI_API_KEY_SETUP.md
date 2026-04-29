@@ -1,20 +1,27 @@
 # OpenAI API Key Setup
 
-Last updated: 2026-04-23
+Last updated: 2026-04-29
 
-## Current status
+Use [README.md](C:/Users/matth/Projects/Trace/Trace/README.md) to choose the
+right workflow and
+[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+for the main operator path. This document is the credential setup reference for
+local embedding-backed commands only.
 
-This Trace workspace now has a working OpenAI API key available for the local
-embedding-backed seed pipeline.
+## Purpose
 
-If `OPENAI_API_KEY` is missing in a fresh shell, the default seed command will fail:
+Use this document only to put `OPENAI_API_KEY` into your local shell and verify
+that local embedding-backed commands can see it.
+
+If `OPENAI_API_KEY` is missing in a fresh shell, local embedding-backed commands will fail:
 
 ```powershell
-python scripts/seed.py --force
+.\.venv-seed\Scripts\python.exe scripts\seed.py --embedding-mode openai --rows 5 --output-dir .test-tmp\openai-seed-check --table-name openai_check --force
 ```
 
 That is expected until the key is added for the current shell or persisted at
-the user level.
+the user level. For the full eval dataset workflow, return to
+[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md).
 
 ## What the key is needed for
 
@@ -60,10 +67,10 @@ You should see the key value echoed back.
 
 ## 4. Test it in the existing Trace environment
 
-Run a small embedding-backed seed build:
+Run a small embedding-backed seed build only as a credential visibility check:
 
 ```powershell
-python scripts/seed.py --rows 5 --output-dir .test-tmp\openai-seed-check --table-name openai_check --force
+.\.venv-seed\Scripts\python.exe scripts\seed.py --embedding-mode openai --rows 5 --output-dir .test-tmp\openai-seed-check --table-name openai_check --force
 ```
 
 If the key is configured correctly, the script should:
@@ -90,29 +97,26 @@ Verify it loaded in the new shell:
 echo $env:OPENAI_API_KEY
 ```
 
-## 6. Use the normal embedding-backed command
+## 6. Return to the canonical workflow
 
-Once the key is set, the standard command is:
+Once the key is set, use
+[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+for the canonical eval dataset, validation, promotion, and proof workflow
+instead of treating this document as the main procedure guide.
 
-```powershell
-python scripts/seed.py --force
-```
-
-## Existing-environment notes
+## Environment notes
 
 - This repo uses PowerShell on Windows.
 - `scripts/seed.py` reads `OPENAI_API_KEY` directly from the environment.
 - No `.env` file or repo config file is required for the current seed flow.
 - Do not commit your API key into the repository, docs, or scripts.
-- The current workspace has already completed one successful embedding-backed
-  local eval dataset build and local validation run.
 
 ## Quick fallback
 
 If you do not want to set up the key yet, you can still run smoke mode:
 
 ```powershell
-python scripts/seed.py --embedding-mode random --rows 5 --output-dir .test-tmp\seed-smoke --table-name smoke_demo --force
+.\.venv-seed\Scripts\python.exe scripts\seed.py --embedding-mode random --rows 5 --output-dir .test-tmp\seed-smoke --table-name smoke_demo --force
 ```
 
 That path works without OpenAI credentials, but it is only for smoke and

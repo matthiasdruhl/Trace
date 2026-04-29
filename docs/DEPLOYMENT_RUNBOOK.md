@@ -1,6 +1,6 @@
 # Trace Deployment Runbook
 
-Last updated: 2026-04-26
+Last updated: 2026-04-29
 
 This runbook is the end-to-end operator guide for deploying Trace from this
 repository. It covers:
@@ -12,33 +12,49 @@ repository. It covers:
 - deployed proof validation
 - rollback
 
-Important scope note:
+## When to use this runbook
 
-- this runbook is primarily the smoke/eval search-stack and proof-path guide
-- the browser-facing production app deploy flow now also includes frontend
-  publishing and CloudFront invalidation, which are documented in
-  `docs/WEB_APP_DEPLOYMENT.md`
-- use this runbook for dataset generation, stack deployment, proof validation,
-  and rollback of the search/eval environments
-- use the web app deployment guide when you need the current app API +
-  frontend publish flow for the production demo surface
+Use this document when you need the main search/eval operator path:
 
-This document is written for the current Trace setup:
+- first-time smoke/eval stack setup
+- local embedding-backed dataset generation and validation
+- dataset refresh or embedding regeneration
+- S3 promotion to the eval prefix
+- proof rerun entrypoints after stack or dataset changes
+- rollback of the search/eval environments
+
+Use other docs for narrower tasks:
+
+- use [docs/WEB_APP_DEPLOYMENT.md](C:/Users/matth/Projects/Trace/Trace/docs/WEB_APP_DEPLOYMENT.md) for the browser-facing app publish flow, CloudFront invalidation, app smoke checks, and app-specific incident handling
+- use [docs/deployed-proof-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/deployed-proof-runbook.md) for proof flags, full acceptance rules, artifact review, and stable fixture promotion
+- use [docs/OPENAI_API_KEY_SETUP.md](C:/Users/matth/Projects/Trace/Trace/docs/OPENAI_API_KEY_SETUP.md) for local embedding credential setup
+- use [docs/retrieval-eval-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/retrieval-eval-runbook.md) for the local labeled relevance harness only
+
+This document is written for the current Trace search/eval setup:
 
 - smoke dataset URI: `s3://trace-vault/uber_audit.lance/`
 - eval dataset URI: `s3://trace-vault/trace/eval/lance/`
 - embedding model: `text-embedding-3-small`
 - vector dimension: `1536`
 
-Current deployed state:
+Current deployed search/eval state:
 
 - smoke stack: `trace-smoke`
 - eval stack: `trace-eval`
 - region: `us-east-1`
 - smoke search URL: `https://u73d8vk2yl.execute-api.us-east-1.amazonaws.com/search`
 - eval search URL: `https://kqsqrljj11.execute-api.us-east-1.amazonaws.com/search`
-- eval app URL: `https://d16y21pmy9pe9s.cloudfront.net`
 - latest successful full eval proof run: `artifacts/validation-runs/20260427T040405Z`
+
+## Operator path at a glance
+
+1. Generate the embedding-backed local eval dataset.
+2. Run local validation before any upload.
+3. Promote the validated dataset to the eval S3 prefix.
+4. Deploy or refresh the smoke and eval stacks as needed.
+5. Rerun deployed proof against `trace-eval`.
+6. Use the web app deployment guide only if you are also publishing the browser app.
+7. Use rollback only by repointing to the preserved smoke dataset path.
 
 ## Recommended deployment layout
 
@@ -51,14 +67,6 @@ Use two stacks:
 
 Do not overwrite the smoke prefix in place. Keep `uber_audit.lance` untouched and
 deploy the eval dataset at `trace/eval/lance`.
-
-Current app note:
-
-- the production app introduced on the current branch is a broader deployment
-  shape than the earlier smoke/eval search-only stacks
-- that app path provisions CloudFront, a frontend bucket, and `/api/*` routes
-- this runbook remains the source of truth for smoke/eval retrieval validation,
-  not the only documentation for the browser app rollout
 
 ## Prerequisites
 
@@ -76,13 +84,10 @@ Expected results:
 - `cargo lambda` resolves successfully
 - `aws sts get-caller-identity` returns the active AWS identity
 
-For the browser app deployment path described in
-[docs/WEB_APP_DEPLOYMENT.md](C:/Users/matth/Projects/Trace/Trace/docs/WEB_APP_DEPLOYMENT.md),
-the deployed Node app API now reads the OpenAI key from Secrets Manager at
-runtime via `OPENAI_API_KEY_SECRET_REF`. A local `OPENAI_API_KEY` shell
-variable is still required for dataset seeding, local embedding-backed tests,
-and proof tooling, but it is no longer a prerequisite for a normal stack
-update by itself.
+A local `OPENAI_API_KEY` shell variable is required for dataset seeding, local
+embedding-backed tests, and proof tooling. For the deployed browser app secret
+path, use
+[docs/WEB_APP_DEPLOYMENT.md](C:/Users/matth/Projects/Trace/Trace/docs/WEB_APP_DEPLOYMENT.md).
 
 If AWS credentials are not configured persistently, use either:
 
@@ -190,6 +195,27 @@ Acceptance criteria:
 - smoke objects still exist under `s3://trace-vault/uber_audit.lance/`
 - manifest upload fields are populated for the eval build
 
+### Dataset refresh and embedding regeneration
+
+Use this refresh path whenever any of these are true:
+
+- the source corpus changed
+- the embedding-backed eval dataset needs to be rebuilt
+- the embedding model or vector dimension changed intentionally
+- you need a fresh eval artifact before demos, proof reruns, or benchmark reruns
+
+Refresh rules:
+
+- regenerate locally with `scripts/seed.py` in `openai` mode before touching the live eval prefix
+- keep `text-embedding-3-small` and dimension `1536` unless you are intentionally changing the deployed stack contract too
+- rerun `scripts/validate_eval_dataset.py` before every upload or promotion
+- promote only validated embedding-backed eval data to `s3://trace-vault/trace/eval/lance/`
+- preserve `s3://trace-vault/uber_audit.lance/` as the rollback-safe smoke dataset
+- after any refresh that changes the deployed eval data or stack configuration, rerun the deployed proof flow against `trace-eval`
+
+For dataset role and prefix-safety details, use
+[docs/S3_MIGRATION.md](C:/Users/matth/Projects/Trace/Trace/docs/S3_MIGRATION.md).
+
 ## 4. Deploy the smoke stack
 
 Deploy the smoke stack first so there is always a known rollback path.
@@ -290,47 +316,22 @@ python scripts\prove_deployed_path.py --repo-root .
 
 Acceptance criteria:
 
-- use a full proof run, not `--dry-run`, `--skip-mcp`, `--allow-missing-vectors`, or `--mock-embeddings`
-- HTTP proof passes
-- MCP proof passes
-- filtered and unfiltered proof cases pass
-- successful HTTP and MCP responses report `query_dim` matching the deployed runtime expectation
-- artifacts are written under `artifacts/validation-runs/<run_id>/`
+- run proof against `trace-eval` or the eval dataset URI
+- write artifacts under `artifacts/validation-runs/<run_id>/`
+- use the proof runbook for the detailed acceptance standard, degraded modes, and artifact review rules
 
-Only that full run counts for Step 3 completion wording. Dry-run, skip-MCP,
-missing-vector, and mock-embedding modes are still useful for scaffolding or
-smoke debugging, but they are not Step 3 acceptance evidence. The runner may
-still write partial artifacts in those modes, then exits non-zero because the
-proof is incomplete.
+Use
+[docs/deployed-proof-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/deployed-proof-runbook.md)
+for:
 
-Optional stable fixtures:
+- degraded or scaffold proof modes such as `--dry-run`, `--skip-mcp`, `--allow-missing-vectors`, and `--mock-embeddings`
+- the full Step 3 acceptance sequence
+- artifact review expectations
+- stable fixture promotion rules and guardrails
 
-```powershell
-python scripts\prove_deployed_path.py `
-  --stack-name trace-eval `
-  --region us-east-1 `
-  --repo-root . `
-  --write-stable-fixtures
-```
+## 8. Current workspace state
 
-Only promote stable fixtures if the responses are representative and clean
-enough to keep in the repository. Use `docs/deployed-proof-runbook.md` for the
-full Step 3 acceptance sequence, artifact review expectations, and fixture
-promotion guidance.
-
-Important guardrail: the runner enforces that stable-fixture writing comes from
-a full run with explicit `--stable-fixture-cases`, full HTTP and MCP
-request/response artifacts for every selected case, and it blocks promotion
-outside the trusted eval context unless you pass
-`--allow-non-eval-stable-fixtures`.
-Before committing fixtures, still confirm the manifest `dataset_uri` is
-`s3://trace-vault/trace/eval/lance/`, confirm any provided `--stack-name` was
-`trace-eval`, and do not promote smoke dataset examples or rely on any default
-representative-fixture policy for normal Step 3 evidence.
-
-## 8. Step 2 completion status
-
-Step 2 is now complete in this workspace. The following have already happened:
+The following have already happened in this workspace:
 
 - the local embedding-backed dataset was generated successfully
 - local validation passed
@@ -340,8 +341,20 @@ Step 2 is now complete in this workspace. The following have already happened:
 - deployed proof passed on `trace-eval`
 - that Step 3 proof is only considered complete when the accepted run includes both HTTP and MCP validation against `trace-eval`
 - the smoke dataset remained available as rollback-only infra data
+- Step 4 benchmark and evaluation evidence packaging is complete
+- Step 5 deployment and operator documentation remains the active docs-hardening milestone
 
-## 9. Rollback
+## 9. Troubleshooting and follow-on guides
+
+Use these docs when the main operator path branches:
+
+- browser app publish failures, app health checks, or app-specific emergency overrides: [docs/WEB_APP_DEPLOYMENT.md](C:/Users/matth/Projects/Trace/Trace/docs/WEB_APP_DEPLOYMENT.md)
+- proof flags, artifact review, and stable fixture promotion: [docs/deployed-proof-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/deployed-proof-runbook.md)
+- local retrieval harness execution and metrics: [docs/retrieval-eval-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/retrieval-eval-runbook.md)
+- dataset role, prefix, and migration safety rules: [docs/S3_MIGRATION.md](C:/Users/matth/Projects/Trace/Trace/docs/S3_MIGRATION.md)
+- local OpenAI key setup for embedding-backed commands: [docs/OPENAI_API_KEY_SETUP.md](C:/Users/matth/Projects/Trace/Trace/docs/OPENAI_API_KEY_SETUP.md)
+
+## 10. Rollback
 
 Rollback should always preserve the smoke path.
 
@@ -358,7 +371,7 @@ If a future shared or main stack ever needs rollback, point it back to:
 
 and redeploy.
 
-## 10. Documentation updates after successful deployment
+## 11. Documentation updates after successful deployment
 
 After the first successful eval deployment and proof run, update:
 
@@ -374,8 +387,10 @@ Those updates should reflect:
 - the local validation gate has been exercised successfully
 - `trace-eval` is the active semantic validation environment
 - step 2 is complete
+- Step 4 benchmark and evaluation evidence packaging is complete
+- Step 5 deployment and operator documentation remains the next active documentation milestone
 
-## 11. Known environment note
+## 12. Known environment note
 
 At the time this runbook was written, local dataset generation and validation had
 already been completed once in this workspace at:

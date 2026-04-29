@@ -1,6 +1,6 @@
 # Trace Web App Deployment
 
-Last updated: 2026-04-27
+Last updated: 2026-04-29
 
 This guide covers the browser-facing Trace app deployment workflow for the
 current stack shape:
@@ -13,6 +13,26 @@ current stack shape:
 Use this guide when you want to update the live web app. Use
 [docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
 for dataset generation, eval proof workflow, and smoke/eval rollout details.
+
+## When to use this guide
+
+Use this document when you need the browser app publish path:
+
+- frontend-only deploys
+- full app publishes that package app-facing code and then publish the frontend
+- app-specific smoke tests for `/`, `/api/health`, and `/api/search`
+- app-specific troubleshooting and emergency override steps
+
+Do not use this document as the primary guide for:
+
+- dataset generation or dataset refresh
+- smoke/eval rollout strategy
+- proof acceptance rules or stable fixture promotion
+
+Those remain in
+[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+and
+[docs/deployed-proof-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/deployed-proof-runbook.md).
 
 ## Current production-style stack values
 
@@ -51,16 +71,45 @@ Current OpenAI secret convention:
   `OPENAI_API_KEY_SECRET_REF`; do not reintroduce direct stack-managed
   `OPENAI_API_KEY` plaintext injection
 
+## First-time secret setup
+
+If `trace/openai-api-key` does not exist yet, create it in AWS Secrets Manager
+before the first app deploy:
+
+```powershell
+aws secretsmanager create-secret `
+  --name trace/openai-api-key `
+  --secret-string "YOUR_REAL_OPENAI_KEY" `
+  --region us-east-1
+```
+
+Verify the secret exists:
+
+```powershell
+aws secretsmanager describe-secret `
+  --secret-id trace/openai-api-key `
+  --region us-east-1
+```
+
+This is the deployed app secret path. Use
+[docs/OPENAI_API_KEY_SETUP.md](C:/Users/matth/Projects/Trace/Trace/docs/OPENAI_API_KEY_SETUP.md)
+only for local shell credential setup for embedding-backed commands.
+
 ## Which deploy path to use
 
 Use `scripts/deploy-frontend.ps1` when you changed only files in `demo-ui/`.
 
-Use `scripts/deploy-full.ps1` when you changed any of:
+Use `scripts/deploy-full.ps1` when you are intentionally publishing the browser
+app together with app-facing backend changes.
 
-- `mcp-bridge/`
-- `lambda-engine/`
-- `template.yaml`
-- frontend and backend together
+Start in
+[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+first if the change is primarily about:
+
+- dataset refresh
+- smoke/eval rollout strategy
+- canonical stack rollout or rollback decisions
+- deployed proof rerun entrypoints
 
 ## Frontend-only deploy
 
@@ -70,7 +119,7 @@ From the repo root:
 .\scripts\deploy-frontend.ps1
 ```
 
-What it does:
+What it does for the app publish path:
 
 - reads `AppApiBaseUrl`, `FrontendBucketName`, and `TraceAppDistributionId`
   from the CloudFormation stack
@@ -97,14 +146,14 @@ From the repo root:
 What it does:
 
 - runs `sam build --beta-features`
-- deploys the current SAM template to `trace-eval`
+- deploys the current SAM template to `trace-eval` as part of the app publish flow
 - converts blank secret-ref and JSON-key parameters to the sentinel
   `__EMPTY__` so SAM clears stale stack values instead of silently reusing an
   earlier secret configuration
 - publishes the frontend only after the stack update succeeds
 - runs the same post-publish smoke tests unless you opt out
 
-Optional overrides:
+Optional app-publish overrides:
 
 ```powershell
 .\scripts\deploy-full.ps1 `
@@ -116,7 +165,7 @@ Optional overrides:
   -OpenAiApiKeySecretJsonKey ""
 ```
 
-If you want to update infrastructure without publishing the frontend yet:
+If you want to package and update the app-facing stack path without publishing the frontend yet:
 
 ```powershell
 .\scripts\deploy-full.ps1 -SkipFrontendPublish
@@ -148,11 +197,12 @@ Expected outputs include:
 - `TraceAppDistributionId`
 - `AppApiSearchUrl`
 
-Run the deployed proof:
-
-```powershell
-python scripts\prove_deployed_path.py --stack-name trace-eval --region us-east-1 --repo-root .
-```
+If the change also touched shared search behavior, stack wiring, or the eval
+dataset, return to
+[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+for the proof rerun entrypoint and use
+[docs/deployed-proof-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/deployed-proof-runbook.md)
+for proof details and artifact review.
 
 Open the live app:
 
@@ -201,10 +251,10 @@ Current healthy response:
 
 ### Backend or infra change
 
-1. Edit files in `mcp-bridge/`, `lambda-engine/`, or `template.yaml`.
+1. Edit files involved in the browser app publish path.
 2. Run `.\scripts\deploy-full.ps1`.
 3. Confirm the helper's root, health, and search smoke tests pass.
-4. Run the deployed proof.
+4. Return to the deployment and proof runbooks, then rerun deployed proof if the change touched shared search behavior or other search/eval behavior outside the browser app surface.
 5. Refresh the live app and confirm the affected behavior.
 
 ## Troubleshooting
@@ -280,3 +330,6 @@ If the proof runner fails:
 
 - inspect the latest run under `artifacts/validation-runs/`
 - compare stack outputs and dataset URI with the expected eval values
+- then continue with
+  [docs/deployed-proof-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/deployed-proof-runbook.md)
+  for proof-specific debugging and acceptance checks

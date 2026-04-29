@@ -1,6 +1,12 @@
 # Retrieval Evaluation Runbook
 
-Last updated: 2026-04-24
+Last updated: 2026-04-28
+
+Use [README.md](C:/Users/matth/Projects/Trace/Trace/README.md) to choose the
+right operator path and
+[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+for end-to-end stack work. This runbook is only for the local retrieval
+relevance harness and its outputs.
 
 ## Goal
 
