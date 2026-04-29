@@ -1,6 +1,6 @@
 # Trace next steps
 
-Last updated: 2026-04-28
+Last updated: 2026-04-29
 
 This is the active prioritized backlog for Trace.
 
@@ -212,7 +212,7 @@ Current note:
 
 ## 5. Tighten deployment and operator documentation
 
-Status: `Partially complete`
+Status: `Complete`
 
 Why this matters:
 
@@ -222,20 +222,26 @@ Why this matters:
 Current note:
 
 - the repo already has active guidance in `README.md`, `docs/DEPLOYMENT_RUNBOOK.md`, `docs/WEB_APP_DEPLOYMENT.md`, `docs/deployed-proof-runbook.md`, `docs/retrieval-eval-runbook.md`, `docs/S3_MIGRATION.md`, and `docs/OPENAI_API_KEY_SETUP.md`
-- Step 5 remains open because those docs still need tighter consolidation, less duplication, and a clearer single operator path
+- Step 5 is complete in this workspace
+- the active docs now route operators through one clearer search/eval path, one browser app publish path, one proof-specific reference path, and narrower support references
 
-What to do:
+What shipped:
 
-- consolidate environment setup guidance for Lambda, MCP bridge, and local evaluation
-- tighten rollback and troubleshooting guidance
-- document dataset refresh and embedding-regeneration workflows clearly
-- keep the proof rerun path explicit and easy to follow
+- `README.md` now acts as the top-level operator router instead of a second procedural runbook
+- `docs/DEPLOYMENT_RUNBOOK.md` now owns the canonical search/eval operator flow, including dataset refresh, promotion, deployed proof rerun entrypoint, and rollback
+- `docs/WEB_APP_DEPLOYMENT.md` now focuses on browser app publishing, app-specific smoke checks, app troubleshooting, and first-time deployed secret setup
+- `docs/deployed-proof-runbook.md` now focuses on proof-specific flags, acceptance rules, artifact review, and stable fixture promotion after operators start from the deployment runbook
+- `docs/S3_MIGRATION.md`, `docs/retrieval-eval-runbook.md`, and `docs/OPENAI_API_KEY_SETUP.md` now read as narrower support references instead of competing primary workflows
 
 Definition of done:
 
 - an operator can go from local dataset generation to deployed proof without guessing
 - the active docs feel current and non-duplicative
 - rollback and troubleshooting steps are easy to find
+
+Current note:
+
+- Step 5 is complete, but Step 6 still remains the next active reliability milestone
 
 Recommended output:
 

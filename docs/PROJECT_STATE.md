@@ -1,6 +1,6 @@
 # Trace project state
 
-Last updated: 2026-04-28
+Last updated: 2026-04-29
 
 ## Summary
 
@@ -21,7 +21,7 @@ Against the active backlog in `docs/NEXT_STEPS.md`, the current status is:
 - step 2 (build a strong demo surface): complete
 - step 3 (create a side-by-side proof of value): complete
 - step 4 (package benchmark and evaluation evidence for judges): complete
-- step 5 (tighten deployment and operator documentation): partially complete
+- step 5 (tighten deployment and operator documentation): complete
 - step 6 (harden deployed proof automation): partially complete
 - step 7 (add one memorable trust or explainability feature): not implemented yet
 - step 8 (prepare the finalist pitch path now): not implemented yet

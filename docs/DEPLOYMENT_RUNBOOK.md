@@ -342,7 +342,7 @@ The following have already happened in this workspace:
 - that Step 3 proof is only considered complete when the accepted run includes both HTTP and MCP validation against `trace-eval`
 - the smoke dataset remained available as rollback-only infra data
 - Step 4 benchmark and evaluation evidence packaging is complete
-- Step 5 deployment and operator documentation remains the active docs-hardening milestone
+- Step 5 deployment and operator documentation is now complete
 
 ## 9. Troubleshooting and follow-on guides
 
@@ -388,7 +388,7 @@ Those updates should reflect:
 - `trace-eval` is the active semantic validation environment
 - step 2 is complete
 - Step 4 benchmark and evaluation evidence packaging is complete
-- Step 5 deployment and operator documentation remains the next active documentation milestone
+- Step 5 deployment and operator documentation is now complete
 
 ## 12. Known environment note
 
