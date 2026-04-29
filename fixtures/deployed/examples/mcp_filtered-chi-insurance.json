@@ -1,0 +1,49 @@
+{
+  "case_id": "filtered-chi-insurance",
+  "channel": "mcp",
+  "request": {
+    "include_text": true,
+    "limit": 4,
+    "query_text": "insurance lapse or coverage gap for fleet vehicles",
+    "sql_filter": "city_code = 'CHI-BACP' AND doc_type = 'Insurance_Lapse_Report'"
+  },
+  "response": {
+    "k": 4,
+    "ok": true,
+    "query_dim": 1536,
+    "results": [
+      {
+        "city_code": "CHI-BACP",
+        "doc_type": "Insurance_Lapse_Report",
+        "incident_id": "1d0d3b7b-3b72-54e4-95f7-4aa9f7b91f10",
+        "score": 0.7418820858001709,
+        "text_content": "Compliance reviewers in CHI-BACP flagged a fleet sedan for an insurance lapse after the renewal binder expired before the carrier endorsement was uploaded. The report notes a temporary deactivation, a request for corrected certificates naming the platform entity, and a warning that trip access would stay throttled until coverage evidence cleared manual review.",
+        "timestamp": "2023-02-14T13:25:09+00:00"
+      },
+      {
+        "city_code": "CHI-BACP",
+        "doc_type": "Insurance_Lapse_Report",
+        "incident_id": "a626bd76-9dcf-5654-a744-4de1f14dd0b2",
+        "score": 0.7562149167060852,
+        "text_content": "An insurance coverage gap review in CHI-BACP documented that a driver remained off-platform after the uploaded declarations page omitted the required commercial rideshare endorsement. Operations attached prior notice emails, the carrier reference number, and a deadline for resubmitting policy proof before the vehicle could return to service.",
+        "timestamp": "2024-06-03T18:42:51+00:00"
+      },
+      {
+        "city_code": "CHI-BACP",
+        "doc_type": "Insurance_Lapse_Report",
+        "incident_id": "b49345c8-64f5-553d-b778-f9dd67651b3d",
+        "score": 0.7636711597442627,
+        "text_content": "The CHI-BACP insurance lapse report for a multi-vehicle fleet recorded that automatic monitoring detected a one-day break in coverage between policy terms. Investigators noted that the replacement certificate arrived late, required a manual VIN cross-check, and triggered a hold on incentive payouts until the compliance queue verified continuous coverage.",
+        "timestamp": "2022-10-29T05:11:34+00:00"
+      },
+      {
+        "city_code": "CHI-BACP",
+        "doc_type": "Insurance_Lapse_Report",
+        "incident_id": "e1e298fb-cc00-5d92-8758-3d237e10a8b0",
+        "score": 0.7710492610931396,
+        "text_content": "A Chicago insurance exception memo shows an operator appealing a suspension after policy documents were uploaded to the partner portal without the active vehicle schedule. The case file references a carrier confirmation call, a corrected endorsement packet, and internal instructions to keep the account restricted until the full insurance bundle matched the fleet roster.",
+        "timestamp": "2025-01-17T22:08:45+00:00"
+      }
+    ]
+  }
+}

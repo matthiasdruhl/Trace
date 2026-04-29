@@ -10,7 +10,7 @@
       "expected_ids": [],
       "assertions": {
         "require_non_empty_results": true,
-        "require_filter_match": false
+        "require_filter_match": true
       }
     },
     {
@@ -46,7 +46,7 @@
       "expected_ids": [],
       "assertions": {
         "require_non_empty_results": true,
-        "require_filter_match": false
+        "require_filter_match": true
       }
     },
     {

@@ -1,0 +1,62 @@
+{
+  "case_id": "filtered-doc-type-in",
+  "channel": "http",
+  "request": {
+    "include_text": false,
+    "limit": 6,
+    "query_vector": {
+      "_redacted": true,
+      "dim": 1536
+    },
+    "sql_filter": "doc_type IN ('Driver_Background_Flag', 'Safety_Incident_Log')"
+  },
+  "response": {
+    "k": 6,
+    "ok": true,
+    "query_dim": 1536,
+    "results": [
+      {
+        "city_code": "CHI-BACP",
+        "doc_type": "Safety_Incident_Log",
+        "incident_id": "58cb65a2-7e0f-56fd-9e6e-f3c15af8e2ce",
+        "score": 0.770069420337677,
+        "timestamp": "2022-08-21T07:28:10+00:00"
+      },
+      {
+        "city_code": "CHI-BACP",
+        "doc_type": "Safety_Incident_Log",
+        "incident_id": "9db13d07-7689-5e79-9314-c7a081510b59",
+        "score": 0.79451984167099,
+        "timestamp": "2023-04-01T04:22:21+00:00"
+      },
+      {
+        "city_code": "SF-CPUC",
+        "doc_type": "Safety_Incident_Log",
+        "incident_id": "b1d9eab7-f1ab-56a8-92cd-c06608381b91",
+        "score": 0.8114176988601685,
+        "timestamp": "2022-09-12T09:11:25+00:00"
+      },
+      {
+        "city_code": "SF-CPUC",
+        "doc_type": "Safety_Incident_Log",
+        "incident_id": "42d035b2-23f7-55a7-80b4-f455b311f024",
+        "score": 0.8175469040870667,
+        "timestamp": "2023-06-15T06:01:36+00:00"
+      },
+      {
+        "city_code": "CHI-BACP",
+        "doc_type": "Safety_Incident_Log",
+        "incident_id": "57cc9213-f598-5efa-b78e-163a4c8f38ba",
+        "score": 0.819161593914032,
+        "timestamp": "2025-11-15T01:35:17+00:00"
+      },
+      {
+        "city_code": "CHI-BACP",
+        "doc_type": "Safety_Incident_Log",
+        "incident_id": "f3e70dae-5092-5ead-8184-7989ad684079",
+        "score": 0.8193415403366089,
+        "timestamp": "2021-02-08T21:32:34+00:00"
+      }
+    ]
+  }
+}

@@ -131,7 +131,7 @@ Schema:
 }
 ```
 
-**`require_filter_match` is not grammar validation.** It is a best-effort proof check: the runner extracts `city_code = '...'` and `doc_type = '...'` equality clauses (single-quoted literals) from `sql_filter` and asserts each returned row matches those literals. It does not prove that arbitrary `sql_filter` text was interpreted correctly overall. Operators must not treat a passing run as verification of the full filter language in [API_CONTRACT.md](../API_CONTRACT.md#sql_filter-grammar); that remains the search service's responsibility. Shapes such as `IN (...)`, inequalities, `OR`, `NOT`, and parentheses are outside the current proof assertions; golden cases that use them should set `require_filter_match` to false and rely on non-empty results (and manual spot checks) unless the filter string contains extractable `city_code` / `doc_type` equalities the runner can check.
+**`require_filter_match` is not grammar validation.** It is a best-effort proof check: the runner extracts supported `city_code` / `doc_type` literal filters from `sql_filter` and asserts each returned row matches them. Today that includes `field = '...'` and `field IN ('...', '...')` forms for those two metadata fields only, joined by top-level `AND`. It does not prove that arbitrary `sql_filter` text was interpreted correctly overall. Operators must not treat a passing run as verification of the full filter language in [API_CONTRACT.md](../API_CONTRACT.md#sql_filter-grammar); that remains the search service's responsibility. When `require_filter_match` is true, unsupported shapes are rejected instead of partially interpreted so the proof layer cannot misstate SQL semantics. Shapes such as inequalities, `OR`, `NOT`, repeated same-field clauses, and nested boolean logic are outside the current proof assertions; golden cases that rely on those broader semantics should leave `require_filter_match` false and rely on non-empty results plus manual spot checks.
 
 ### Per-run manifest
 
@@ -143,6 +143,13 @@ Fields:
 
 - `run_id`
 - `executed_at`
+- `run_mode`
+- `run_purpose`
+- `selected_case_ids`
+- `fixture_source_dir`
+- `channel_requirements`
+- `completeness`
+- `evidence` - artifact-side classification metadata: `evidence_class`, `gate_eligible`, `gate_policy_reasons`, and whether the full golden-case set was selected
 - `stack_name`
 - `region`
 - `search_url`

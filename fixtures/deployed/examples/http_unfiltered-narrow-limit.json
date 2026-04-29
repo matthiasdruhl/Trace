@@ -1,0 +1,44 @@
+{
+  "case_id": "unfiltered-narrow-limit",
+  "channel": "http",
+  "request": {
+    "include_text": true,
+    "limit": 3,
+    "query_vector": {
+      "_redacted": true,
+      "dim": 1536
+    },
+    "sql_filter": ""
+  },
+  "response": {
+    "k": 3,
+    "ok": true,
+    "query_dim": 1536,
+    "results": [
+      {
+        "city_code": "LAS-TNC",
+        "doc_type": "Vehicle_Inspection_Audit",
+        "incident_id": "5e23495e-cfc7-5f32-a3cf-1118d4f6ed13",
+        "score": 0.6884108185768127,
+        "text_content": "Late-night roadside inspectors in LAS-TNC logged a vehicle inspection audit after officers found missing reflective decals and an expired maintenance sticker during an after-hours stop. The audit packet references roadside photos, a mechanic attestation request, and a notice that the vehicle would remain unavailable for dispatch until the inspection remediation was confirmed.",
+        "timestamp": "2024-08-09T03:17:42+00:00"
+      },
+      {
+        "city_code": "NYC-TLC",
+        "doc_type": "Vehicle_Inspection_Audit",
+        "incident_id": "8abf5714-1d50-50c1-abf7-e621ca1f1cfb",
+        "score": 0.6949951648712158,
+        "text_content": "A nighttime inspection finding in NYC-TLC recorded that an active driver was stopped after a brake-light complaint and then routed into a formal audit for incomplete inspection paperwork. Review notes mention odometer snapshots, portal upload gaps, and a compliance reminder that roadside findings can trigger temporary throttling while documents are reconciled.",
+        "timestamp": "2023-11-02T01:09:15+00:00"
+      },
+      {
+        "city_code": "PAR-VTC",
+        "doc_type": "Vehicle_Inspection_Audit",
+        "incident_id": "8f8eb0bb-f31a-5890-a125-3efb2d86d71c",
+        "score": 0.701602041721344,
+        "text_content": "An overnight roadside compliance stop in PAR-VTC produced an inspection audit after officers requested updated registration, mechanic sign-off, and proof that the latest safety checklist had been completed. The narrative ties the event to a narrow deadline for filing corrected paperwork and warns that repeat late-night findings can escalate to tier-2 enforcement review.",
+        "timestamp": "2025-03-27T04:54:28+00:00"
+      }
+    ]
+  }
+}

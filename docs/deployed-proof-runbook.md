@@ -83,6 +83,16 @@ python scripts/prove_deployed_path.py \
   --repo-root .
 ```
 
+For a reduced live smoke run before a demo, select only the cases you want:
+
+```bash
+python scripts/prove_deployed_path.py \
+  --stack-name trace-eval \
+  --region us-east-1 \
+  --case-ids unfiltered-demo,filtered-nyc-safety \
+  --repo-root .
+```
+
 Or with explicit eval-stack settings (no stack lookup):
 
 ```bash
@@ -92,9 +102,33 @@ set OPENAI_API_KEY=...
 python scripts/prove_deployed_path.py --repo-root .
 ```
 
+For CI-safe replay against committed stable fixtures instead of live AWS:
+
+```bash
+python scripts/prove_deployed_path.py \
+  --replay-fixtures-dir fixtures/deployed/examples
+```
+
+That default replay path now validates the full golden-case set from
+`fixtures/deployed/golden_cases.json`. Use `--case-ids` only for an intentional
+reduced replay subset while debugging locally; CI should leave it unset so
+fixture coverage must match the entire committed golden set.
+
 For accepted Step 3 evidence, use the eval dataset URI and the `trace-eval`
 stack context. Use smoke dataset settings only for structural debugging or
 rollback-only scenarios, not for accepted proof completion claims.
+
+Automation entrypoints:
+
+- `.github/workflows/deployed-proof-replay.yml`: PR/main CI-safe replay of the committed stable fixtures
+- `.github/workflows/deployed-proof-live.yml`: manual `workflow_dispatch` entrypoint with explicit release-gate vs smoke-rerun modes
+
+For the live workflow:
+
+- `run_purpose=release_gate` is the only gate-eligible path; it requires `stack_name=trace-eval`, the full golden-case set (`case_ids` left empty), and the trusted eval dataset
+- `run_purpose=smoke_rerun` is reduced-case operator smoke only; it requires `case_ids`, rejects the full golden-case set, and is never acceptable as release-gate evidence
+- before the proof run starts, the workflow reads `TraceApiKeySecretRef` from the selected CloudFormation stack and fails early if the stack requires a Trace API key but no `TRACE_API_KEY` repository secret is configured
+- the persisted `manifest.json` now records `run_purpose` plus an `evidence` block with `evidence_class`, `gate_eligible`, and `gate_policy_reasons`, so uploaded artifacts are self-describing even after they are detached from the workflow summary
 
 ## What counts as Step 3 acceptance
 
@@ -110,6 +144,9 @@ eval dataset URI. The acceptable path is:
 - every successful HTTP and MCP response reports `query_dim` equal to the
   deployed runtime expectation
 - proof-level filter checks pass for cases that set `require_filter_match=true`
+- if you use `.github/workflows/deployed-proof-live.yml`, the run must stay on
+  `run_purpose=release_gate` with `stack_name=trace-eval` and empty `case_ids`
+  so the resulting artifact is clearly a full gate run rather than a smoke subset
 
 The runner also supports degraded or scaffold modes, but they do not satisfy
 Step 3 acceptance on their own:
@@ -157,6 +194,15 @@ MCP validation in the same full run, `query_dim` matches the deployed runtime,
 and proof-level filter checks pass for cases that set
 `require_filter_match=true`.
 
+The manual live workflow summary now makes this explicit:
+
+- `Gate eligible: true` means the run stayed on the release-gate path and the
+  manifest still reflects a full live `trace-eval` proof against
+  `s3://trace-vault/trace/eval/lance/`
+- `Gate eligible: false` means the run was smoke-only, subset-only, or
+  otherwise outside the trusted release-gate policy and must not be used as
+  Step 3 signoff evidence
+
 ### Useful flags
 
 | Flag | Purpose |
@@ -165,6 +211,8 @@ and proof-level filter checks pass for cases that set
 | `--skip-mcp` | Debugging mode: validate only the direct HTTP path, then fail the overall run as incomplete. |
 | `--dry-run` | Resolve context and load cases only; no HTTP/MCP calls, and the overall run remains incomplete. |
 | `--allow-missing-vectors` | Scaffold mode: if embeddings cannot be resolved, skip HTTP instead of failing immediately; the overall run still fails if any case is incomplete. |
+| `--case-ids` | Run only the named golden cases. Use this for fast live smoke reruns or explicit replay coverage. |
+| `--replay-fixtures-dir` | Validate saved `http_<case_id>.json` and `mcp_<case_id>.json` bundles instead of calling live HTTP/MCP paths. Replay mode is CI-safe and rejects `--dry-run`, `--mock-embeddings`, `--allow-missing-vectors`, `--skip-mcp`, and `--write-stable-fixtures`. |
 | `--write-stable-fixtures` | After success, write scrubbed examples to `fixtures/deployed/examples/` for the explicit case IDs named in `--stable-fixture-cases`. Promotion requires full HTTP and MCP request/response artifacts for every selected case and cannot be combined with `--skip-mcp` or `--dry-run`. |
 | `--allow-non-eval-stable-fixtures` | Override the trusted-eval-context promotion guard. Does not make non-eval fixtures acceptable for Step 3 by itself. |
 
@@ -172,7 +220,7 @@ and proof-level filter checks pass for cases that set
 
 Each run writes:
 
-- `artifacts/validation-runs/<run_id>/manifest.json` - `api_auth_mode` reflects the deployed stack when `--stack-name` is used (from `TraceApiKeySecretRef`); `local_api_key_supplied` records whether this run passed a key (see [features/deployed-proof-path.md](features/deployed-proof-path.md#per-run-manifest))
+- `artifacts/validation-runs/<run_id>/manifest.json` - now includes `run_mode`, `run_purpose`, `selected_case_ids`, `fixture_source_dir` for replay runs, `channel_requirements`, a `completeness` summary, and an `evidence` block (`evidence_class`, `gate_eligible`, `gate_policy_reasons`, `full_golden_case_set_selected`) in addition to the deployed context fields; `api_auth_mode` reflects the deployed stack when `--stack-name` is used (from `TraceApiKeySecretRef`); `local_api_key_supplied` records whether this run passed a key (see [features/deployed-proof-path.md](features/deployed-proof-path.md#per-run-manifest))
 - `artifacts/validation-runs/<run_id>/http/<case_id>.request.json` and `.response.json`
 - `artifacts/validation-runs/<run_id>/mcp/<case_id>.request.json` and `.response.json`
 
@@ -204,7 +252,19 @@ Promotion guardrails:
 Current committed examples:
 
 - `http_unfiltered-demo.json` / `mcp_unfiltered-demo.json`
+- `http_filtered-chi-insurance.json` / `mcp_filtered-chi-insurance.json`
+- `http_unfiltered-narrow-limit.json` / `mcp_unfiltered-narrow-limit.json`
 - `http_filtered-nyc-safety.json` / `mcp_filtered-nyc-safety.json`
+- `http_filtered-doc-type-in.json` / `mcp_filtered-doc-type-in.json`
+
+Replay coverage rule:
+
+- the replay workflow and unit tests now enforce that committed fixtures under
+  `fixtures/deployed/examples/` cover every case in
+  `fixtures/deployed/golden_cases.json`
+- if you intentionally run a reduced replay subset with `--case-ids`, the
+  runner still requires complete HTTP+MCP fixture pairs for the selected cases,
+  but it will not require the fixture directory to shrink to that subset
 
 These examples are proof fixtures, not ranking-quality benchmarks.
 
@@ -214,16 +274,19 @@ Cases live in `fixtures/deployed/golden_cases.json`. They are **proof-oriented**
 (non-empty results, optional post-hoc checks on returned rows), not
 retrieval-quality evaluation.
 
-**`require_filter_match`:** When true, the runner only checks that each result
-row's `city_code` and `doc_type` match **equality** conditions of the form
-`field = 'literal'` found in the case's `sql_filter` string (quoted literals,
-`''` escape supported). It does **not** re-validate the full `sql_filter`
+**`require_filter_match`:** When true, the runner checks that each result row's
+`city_code` and `doc_type` match supported proof-level literals parsed from the
+case `sql_filter`: simple equality conditions like `field = 'literal'` and
+simple `IN (...)` lists like `doc_type IN ('A', 'B')` (quoted literals with
+`''` escapes supported). It does **not** re-validate the full `sql_filter`
 grammar ([`sql_filter` in API_CONTRACT.md](API_CONTRACT.md#sql_filter-grammar));
-the Lambda still enforces that. The proof runner does **not** assert
-`IN (...)`, ranges, `OR` / `NOT`, or other shapes. Cases that rely on those
-operators should keep `require_filter_match` false and still prove the path by
-sending the filter and requiring non-empty results (see
-`filtered-doc-type-in` in the golden fixture).
+the Lambda still enforces that. `require_filter_match=true` now **rejects**
+unsupported proof-level shapes instead of partially interpreting them, so the
+runner never overclaims `sql_filter` semantics. The proof runner still does
+**not** assert ranges, `OR` / `NOT`, arithmetic, repeated same-field clauses,
+or other richer SQL shapes. Cases that rely on unsupported operators should
+keep `require_filter_match` false and still prove the path by sending the
+filter and requiring non-empty results.
 
 ## Assumptions
 

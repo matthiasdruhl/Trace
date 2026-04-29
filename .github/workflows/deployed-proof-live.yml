@@ -1,0 +1,279 @@
+name: deployed proof live
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_purpose:
+        description: Release gate or reduced-case smoke rerun
+        required: true
+        type: choice
+        default: release_gate
+        options:
+          - release_gate
+          - smoke_rerun
+      stack_name:
+        description: Deployed stack to validate
+        required: false
+        default: trace-eval
+      aws_region:
+        description: AWS region for stack resolution
+        required: false
+        default: us-east-1
+      case_ids:
+        description: Optional comma-separated case_ids for a reduced live smoke run
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  live-proof:
+    name: Live deployed proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONPATH: .
+      AWS_REGION: ${{ inputs.aws_region }}
+      AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+      TRACE_STACK_NAME: ${{ inputs.stack_name }}
+      TRACE_CASE_IDS: ${{ inputs.case_ids }}
+      TRACE_RUN_PURPOSE: ${{ inputs.run_purpose }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      TRACE_API_KEY: ${{ secrets.TRACE_API_KEY }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Validate live proof request
+        id: validate_live_proof_request
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          missing=()
+
+          if [[ -z "${AWS_ROLE_ARN}" ]]; then
+            missing+=("AWS_ROLE_ARN repository variable")
+          fi
+
+          if [[ -z "${OPENAI_API_KEY}" ]]; then
+            missing+=("OPENAI_API_KEY repository secret")
+          fi
+
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing required live proof configuration:\n' >&2
+            printf ' - %s\n' "${missing[@]}" >&2
+            exit 1
+          fi
+
+          python scripts/prove_deployed_path.py \
+            --workflow-live-request-preflight \
+            --run-purpose "${TRACE_RUN_PURPOSE}" \
+            --stack-name "${TRACE_STACK_NAME}" \
+            --case-ids "${TRACE_CASE_IDS}" \
+            >> "${GITHUB_OUTPUT}"
+
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Preflight deployed auth requirements
+        id: preflight_deployed_auth_requirements
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          api_key_secret_ref="$(
+            aws cloudformation describe-stacks \
+              --stack-name "${TRACE_STACK_NAME}" \
+              --region "${AWS_REGION}" \
+              --query "Stacks[0].Parameters[?ParameterKey=='TraceApiKeySecretRef'].ParameterValue | [0]" \
+              --output text
+          )"
+
+          if [[ "${api_key_secret_ref}" == "None" ]]; then
+            api_key_secret_ref=""
+          fi
+
+          requires_trace_api_key="false"
+          if [[ -n "${api_key_secret_ref}" ]]; then
+            requires_trace_api_key="true"
+          fi
+
+          if [[ "${requires_trace_api_key}" == "true" && -z "${TRACE_API_KEY}" ]]; then
+            echo "Stack ${TRACE_STACK_NAME} requires TRACE_API_KEY because TraceApiKeySecretRef is set, but the TRACE_API_KEY repository secret is empty or unavailable." >&2
+            exit 1
+          fi
+
+          {
+            echo "requires_trace_api_key=${requires_trace_api_key}"
+            echo "api_key_secret_ref=${api_key_secret_ref}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            scripts/requirements.txt
+            scripts/constraints.txt
+
+      - name: Install Python dependencies
+        run: python -m pip install -r scripts/requirements.txt -c scripts/constraints.txt
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mcp-bridge/package-lock.json
+
+      - name: Install MCP bridge dependencies
+        working-directory: mcp-bridge
+        run: npm ci
+
+      - name: Build MCP bridge
+        working-directory: mcp-bridge
+        run: npm run build
+
+      - name: Run live proof
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cmd=(
+            python scripts/prove_deployed_path.py
+            --stack-name "${TRACE_STACK_NAME}"
+            --region "${AWS_REGION}"
+            --run-purpose "${TRACE_RUN_PURPOSE}"
+            --repo-root .
+          )
+
+          normalized_case_ids="${{ steps.validate_live_proof_request.outputs.normalized_case_ids }}"
+          if [[ -n "${normalized_case_ids}" ]]; then
+            cmd+=(--case-ids "${normalized_case_ids}")
+          fi
+
+          "${cmd[@]}"
+
+      - name: Enforce release-gate evidence policy
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${TRACE_RUN_PURPOSE}" != "release_gate" ]]; then
+            echo "Smoke rerun requested; skipping release-gate evidence enforcement."
+            exit 0
+          fi
+
+          latest_run="$(ls -td artifacts/validation-runs/* 2>/dev/null | head -n 1 || true)"
+          if [[ -z "${latest_run}" ]]; then
+            echo "Release-gate run did not create a validation artifact directory." >&2
+            exit 1
+          fi
+
+          manifest_path="${latest_run}/manifest.json"
+          if [[ ! -f "${manifest_path}" ]]; then
+            echo "Release-gate run is missing manifest.json." >&2
+            exit 1
+          fi
+
+          python scripts/prove_deployed_path.py \
+            --workflow-release-gate-manifest-check \
+            --manifest-path "${manifest_path}"
+
+      - name: Upload live proof artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: deployed-proof-live-artifacts
+          path: artifacts/validation-runs
+          if-no-files-found: warn
+
+      - name: Summarize live proof
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          latest_run="$(ls -td artifacts/validation-runs/* 2>/dev/null | head -n 1 || true)"
+          if [[ -z "${latest_run}" ]]; then
+            {
+              echo "## Live Deployed Proof"
+              echo
+              echo "- Job status: `${{ job.status }}`"
+              echo "- Status: `no-artifacts`"
+              echo "- Details: no validation run directory was created."
+            } >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+
+          manifest_path="${latest_run}/manifest.json"
+          if [[ ! -f "${manifest_path}" ]]; then
+            {
+              echo "## Live Deployed Proof"
+              echo
+              echo "- Job status: `${{ job.status }}`"
+              echo "- Status: `manifest-missing`"
+              echo "- Run directory: \`${latest_run}\`"
+              echo "- Details: proof exited before writing manifest.json; inspect uploaded logs/artifacts from this run directory for the root failure."
+            } >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+
+          python - "${manifest_path}" "${{ job.status }}" "${{ steps.preflight_deployed_auth_requirements.outputs.requires_trace_api_key }}" >> "${GITHUB_STEP_SUMMARY}" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          manifest = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          golden_cases = json.loads(
+              Path("fixtures/deployed/golden_cases.json").read_text(encoding="utf-8")
+          )
+          job_status = sys.argv[2]
+          requires_trace_api_key = sys.argv[3] == "true"
+          completeness = manifest.get("completeness") or {}
+          evidence = manifest.get("evidence") or {}
+          selected_case_ids = manifest.get("selected_case_ids") or []
+          expected_case_ids = [
+              case["case_id"] for case in golden_cases.get("cases") or []
+          ]
+          dataset_uri = manifest.get("dataset_uri")
+          full_case_set_selected = (
+              len(selected_case_ids) == len(expected_case_ids)
+              and set(selected_case_ids) == set(expected_case_ids)
+          )
+          gate_policy_reasons = evidence.get("gate_policy_reasons") or []
+
+          print("## Live Deployed Proof")
+          print()
+          print(f"- Job status: `{job_status}`")
+          print(f"- Requested purpose: `{manifest.get('run_purpose')}`")
+          print(f"- Evidence class: `{evidence.get('evidence_class')}`")
+          print(f"- Gate eligible: `{evidence.get('gate_eligible')}`")
+          print(f"- Run mode: `{manifest.get('run_mode')}`")
+          print(f"- Stack: `{manifest.get('stack_name')}`")
+          print(f"- Region: `{manifest.get('region')}`")
+          print(f"- Dataset URI: `{dataset_uri}`")
+          print(f"- Trace API key required by stack: `{requires_trace_api_key}`")
+          print(
+              "- Selected cases: "
+              + (
+                  "full golden-case set"
+                  if full_case_set_selected
+                  else ", ".join(f"`{case_id}`" for case_id in selected_case_ids)
+              )
+          )
+          print(f"- Complete: `{completeness.get('complete')}`")
+          incomplete = completeness.get("incomplete_case_ids") or []
+          print(
+              "- Incomplete cases: "
+              + (", ".join(f"`{case_id}`" for case_id in incomplete) if incomplete else "none")
+          )
+          if gate_policy_reasons:
+              print("- Gate policy notes: " + "; ".join(gate_policy_reasons))
+          else:
+              print("- Gate policy notes: full trace-eval run with the trusted eval dataset")
+          PY

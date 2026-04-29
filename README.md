@@ -65,7 +65,9 @@ For deployed Step 3 completion evidence, use
 [docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
 and
 [docs/deployed-proof-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/deployed-proof-runbook.md),
-which define the required full proof run against `trace-eval`.
+which define the required full proof run against `trace-eval`. In the manual
+GitHub Actions entrypoint, only `run_purpose=release_gate` with empty
+`case_ids` is gate-eligible; reduced-case reruns are smoke-only evidence.
 
 ## Evidence
 
@@ -259,10 +261,12 @@ Important MCP bridge environment variables:
 
 The repo includes deployed-proof tooling for end-to-end validation:
 
-- `scripts/prove_deployed_path.py`: validates deployed `POST /search` and MCP traversal, writes per-run artifacts, and can promote scrubbed stable fixtures
+- `scripts/prove_deployed_path.py`: validates deployed `POST /search` and MCP traversal, supports `--case-ids` for reduced live smoke runs, supports `--replay-fixtures-dir` for CI-safe fixture replay, writes per-run artifacts, and can promote scrubbed stable fixtures
 - `scripts/proof_mcp_stdio.py`: stdio JSON-RPC helper for exercising `mcp-bridge` as a subprocess from the proof runner
 - `fixtures/deployed/golden_cases.json`: proof-oriented golden cases
-- `fixtures/deployed/examples/`: committed location for stable scrubbed examples
+- `fixtures/deployed/examples/`: committed location for stable scrubbed examples and replay fixtures; it now covers every golden case for full replay validation
+- `.github/workflows/deployed-proof-replay.yml`: PR/main CI-safe replay of the full committed golden-case fixture set
+- `.github/workflows/deployed-proof-live.yml`: manual live proof entrypoint with explicit `release_gate` vs `smoke_rerun` modes; it preflights `TraceApiKeySecretRef` from the selected stack and fails early if a required `TRACE_API_KEY` secret is missing
 
 Use
 [docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
@@ -273,6 +277,7 @@ for proof flags, acceptance rules, useful flags, and artifact review.
 Current trusted proof context:
 
 - the proof runner and tests are implemented
+- replay mode now revalidates committed stable fixtures for every case in `fixtures/deployed/golden_cases.json`, covering unfiltered, equality-filtered, and simple `IN (...)` filtered proof paths without AWS or OpenAI access
 - the current smoke dataset is `s3://trace-vault/uber_audit.lance/`
 - the eval dataset is live at `s3://trace-vault/trace/eval/lance/`
 - `trace-smoke` search URL: `https://u73d8vk2yl.execute-api.us-east-1.amazonaws.com/search`
