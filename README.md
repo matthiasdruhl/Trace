@@ -8,6 +8,22 @@ Trace is purpose-built for one primary workflow: high-stakes archive review
 across historical incidents, audits, and compliance records where language is
 inconsistent but operational constraints still matter.
 
+## Overview
+
+This repository is the full implementation of that idea: a **deployable
+investigation product** with a browser app (`demo-ui`), a Node **app API** and
+**MCP bridge** (`mcp-bridge`) for embeddings and integrations, a **Rust** search
+Lambda (`lambda-engine`) over **Lance** data on **S3**, Python **scripts** for
+seeding datasets and running retrieval evaluation and **deployed proof**
+checks, and **`template.yaml`** for AWS SAM. Investigators work in natural
+language; the stack returns ranked, filter-constrained archive records they can
+audit and hand off.
+
+Trace was built for the **Handshake × OpenAI Codex Creator Challenge**
+(OpenAI Codex and Handshake). Competition scoring and demo expectations
+influenced how evidence, operator runbooks, and judge-facing docs are packaged;
+see [docs/product/COMPETITION_STRATEGY.md](docs/product/COMPETITION_STRATEGY.md).
+
 ## Problem / User / Why Existing Search Fails / Why Trace
 
 ### Problem
@@ -29,7 +45,7 @@ investigator who needs to answer questions like:
   of search hits?
 
 The primary persona is documented in
-[docs/PERSONA.md](C:/Users/matth/Projects/Trace/Trace/docs/PERSONA.md).
+[docs/product/PERSONA.md](docs/product/PERSONA.md).
 
 ### Why Existing Search Fails
 
@@ -48,7 +64,7 @@ an explainable handoff instead of a generic search result page.
 ## Proof Of Value
 
 The committed proof-of-value pack lives in
-[docs/PROOF_OF_VALUE.md](C:/Users/matth/Projects/Trace/Trace/docs/PROOF_OF_VALUE.md).
+[docs/product/PROOF_OF_VALUE.md](docs/product/PROOF_OF_VALUE.md).
 It packages two selected local comparison artifacts from the retrieval harness:
 
 - for the insurance lapse workflow, `keyword_only` returned `0/3` labeled positives while Trace returned `3/3`
@@ -62,9 +78,9 @@ matches `trace_prefilter_vector`, so the proof pack is intentionally showing two
 selected failure modes rather than claiming that every non-Trace baseline loses.
 
 For deployed Step 3 completion evidence, use
-[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+[docs/guides/DEPLOYMENT_RUNBOOK.md](docs/guides/DEPLOYMENT_RUNBOOK.md)
 and
-[docs/deployed-proof-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/deployed-proof-runbook.md),
+[docs/guides/deployed-proof-runbook.md](docs/guides/deployed-proof-runbook.md),
 which define the required full proof run against `trace-eval`. In the manual
 GitHub Actions entrypoint, only `run_purpose=release_gate` with empty
 `case_ids` is gate-eligible; reduced-case reruns are smoke-only evidence.
@@ -72,9 +88,9 @@ GitHub Actions entrypoint, only `run_purpose=release_gate` with empty
 ## Evidence
 
 The canonical Step 4 evidence pack lives in
-[docs/BENCHMARK_EVIDENCE.md](C:/Users/matth/Projects/Trace/Trace/docs/BENCHMARK_EVIDENCE.md).
+[docs/project/BENCHMARK_EVIDENCE.md](docs/project/BENCHMARK_EVIDENCE.md).
 Use that doc and
-[fixtures/eval/benchmark_evidence_snapshot.json](C:/Users/matth/Projects/Trace/Trace/fixtures/eval/benchmark_evidence_snapshot.json)
+[fixtures/eval/benchmark_evidence_snapshot.json](fixtures/eval/benchmark_evidence_snapshot.json)
 for README, demo, and pitch-safe numbers.
 
 - Trace reached `1.000` average `Recall@k` and `1.000` filtered strict accuracy on the current labeled eval corpus.
@@ -135,18 +151,18 @@ search API key stay server-side in the Node app API.
 - `lambda-engine/`: Rust Lambda runtime, request validation, filtering, and Lance search path
 - `mcp-bridge/`: shared Node layer for the stdio MCP bridge and the app API Lambda
 - `scripts/`: synthetic dataset generation and optional S3 upload/promotion flow
-- `docs/`: active reference docs plus a `deprecated/` archive for superseded planning material
+- `docs/`: technical and operator documentation — see [docs/README.md](docs/README.md) for the full index; superseded material lives in `docs/deprecated/`
 - `template.yaml`: SAM deployment template for the Lambda and HTTP API
 
 ## Operator paths
 
 Use the active docs this way:
 
-- first-time search/eval setup, dataset refresh, stack rollout, deployed proof rerun entrypoint, and rollback: [docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
-- live browser app deploys, frontend publish, and app-specific smoke checks: [docs/WEB_APP_DEPLOYMENT.md](C:/Users/matth/Projects/Trace/Trace/docs/WEB_APP_DEPLOYMENT.md)
-- deployed proof flags, acceptance rules, useful flags, and artifact review after you start from the deployment runbook: [docs/deployed-proof-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/deployed-proof-runbook.md)
-- local retrieval relevance evaluation and metric interpretation: [docs/retrieval-eval-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/retrieval-eval-runbook.md)
-- local OpenAI credential setup for embedding-backed workflows: [docs/OPENAI_API_KEY_SETUP.md](C:/Users/matth/Projects/Trace/Trace/docs/OPENAI_API_KEY_SETUP.md)
+- first-time search/eval setup, dataset refresh, stack rollout, deployed proof rerun entrypoint, and rollback: [docs/guides/DEPLOYMENT_RUNBOOK.md](docs/guides/DEPLOYMENT_RUNBOOK.md)
+- live browser app deploys, frontend publish, and app-specific smoke checks: [docs/guides/WEB_APP_DEPLOYMENT.md](docs/guides/WEB_APP_DEPLOYMENT.md)
+- deployed proof flags, acceptance rules, useful flags, and artifact review after you start from the deployment runbook: [docs/guides/deployed-proof-runbook.md](docs/guides/deployed-proof-runbook.md)
+- local retrieval relevance evaluation and metric interpretation: [docs/guides/retrieval-eval-runbook.md](docs/guides/retrieval-eval-runbook.md)
+- local OpenAI credential setup for embedding-backed workflows: [docs/guides/OPENAI_API_KEY_SETUP.md](docs/guides/OPENAI_API_KEY_SETUP.md)
 
 ## Run the production app locally
 
@@ -169,13 +185,13 @@ npm run dev
 
 For app API packaging checks, frontend publishing, CloudFront invalidation, and
 app-specific troubleshooting, use
-[docs/WEB_APP_DEPLOYMENT.md](C:/Users/matth/Projects/Trace/Trace/docs/WEB_APP_DEPLOYMENT.md).
+[docs/guides/WEB_APP_DEPLOYMENT.md](docs/guides/WEB_APP_DEPLOYMENT.md).
 `sam local start-api` is not the supported `/api/*` workflow for this branch.
 
 ## Deploy the production app
 
 Use
-[docs/WEB_APP_DEPLOYMENT.md](C:/Users/matth/Projects/Trace/Trace/docs/WEB_APP_DEPLOYMENT.md)
+[docs/guides/WEB_APP_DEPLOYMENT.md](docs/guides/WEB_APP_DEPLOYMENT.md)
 as the canonical browser app deployment guide.
 
 That guide owns:
@@ -186,7 +202,7 @@ That guide owns:
 - app-specific troubleshooting and emergency override guidance
 
 Use
-[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+[docs/guides/DEPLOYMENT_RUNBOOK.md](docs/guides/DEPLOYMENT_RUNBOOK.md)
 for dataset generation, eval stack rollout, deployed proof rerun entrypoints, and rollback of
 the search/eval environments.
 
@@ -195,17 +211,17 @@ the search/eval environments.
 Use the path that matches the job:
 
 1. Set up a local OpenAI key for embedding-backed workflows:
-   [docs/OPENAI_API_KEY_SETUP.md](C:/Users/matth/Projects/Trace/Trace/docs/OPENAI_API_KEY_SETUP.md)
+   [docs/guides/OPENAI_API_KEY_SETUP.md](docs/guides/OPENAI_API_KEY_SETUP.md)
 2. Run the end-to-end search/eval operator flow:
-   [docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+   [docs/guides/DEPLOYMENT_RUNBOOK.md](docs/guides/DEPLOYMENT_RUNBOOK.md)
 3. Publish or update the browser app:
-   [docs/WEB_APP_DEPLOYMENT.md](C:/Users/matth/Projects/Trace/Trace/docs/WEB_APP_DEPLOYMENT.md)
+   [docs/guides/WEB_APP_DEPLOYMENT.md](docs/guides/WEB_APP_DEPLOYMENT.md)
 4. Run the local retrieval relevance harness:
-   [docs/retrieval-eval-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/retrieval-eval-runbook.md)
+   [docs/guides/retrieval-eval-runbook.md](docs/guides/retrieval-eval-runbook.md)
 5. Start deployed proof reruns in:
-   [docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+   [docs/guides/DEPLOYMENT_RUNBOOK.md](docs/guides/DEPLOYMENT_RUNBOOK.md)
 6. Use detailed proof acceptance and artifact review guidance from:
-   [docs/deployed-proof-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/deployed-proof-runbook.md)
+   [docs/guides/deployed-proof-runbook.md](docs/guides/deployed-proof-runbook.md)
 
 ### Local component checks
 
@@ -269,9 +285,9 @@ The repo includes deployed-proof tooling for end-to-end validation:
 - `.github/workflows/deployed-proof-live.yml`: manual live proof entrypoint with explicit `release_gate` vs `smoke_rerun` modes; it preflights `TraceApiKeySecretRef` from the selected stack and fails early if a required `TRACE_API_KEY` secret is missing
 
 Use
-[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+[docs/guides/DEPLOYMENT_RUNBOOK.md](docs/guides/DEPLOYMENT_RUNBOOK.md)
 for the canonical deployed proof rerun entrypoint, then use
-[docs/deployed-proof-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/deployed-proof-runbook.md)
+[docs/guides/deployed-proof-runbook.md](docs/guides/deployed-proof-runbook.md)
 for proof flags, acceptance rules, useful flags, and artifact review.
 
 Current trusted proof context:
@@ -287,22 +303,28 @@ Current trusted proof context:
 
 ## Documentation map
 
-- `docs/ARCHITECTURE.md`: component-level system overview
-- `docs/API_CONTRACT.md`: request, response, auth, and filter grammar reference
-- `docs/COMPETITION_STRATEGY.md`: rubric-optimized plan for maximizing Handshake x OpenAI Codex Creator Challenge scoring
-- `docs/DATA_SPEC.md`: synthetic dataset schema and seed script behavior
-- `docs/DEMO_PLAN.md`: recommended live-demo structure, memorable queries, and proof points
-- `docs/DEPLOYMENT_RUNBOOK.md`: canonical search/eval operator path for dataset refresh, stack rollout, deployed proof rerun entrypoint, and rollback
-- `docs/OPENAI_API_KEY_SETUP.md`: local embedding credential setup reference
-- `docs/PERSONA.md`: primary user persona and product framing anchor
-- `docs/deployed-proof-runbook.md`: proof flags, acceptance rules, useful flags, and artifact interpretation after starting from the deployment runbook
-- `docs/PITCH_VIDEO_PLAN.md`: three-minute finalist pitch structure and asset checklist
-- `docs/PROJECT_STATE.md`: current implementation snapshot
-- `docs/NEXT_STEPS.md`: active prioritized backlog
-- `docs/retrieval-eval-runbook.md`: local labeled relevance harness execution and metric interpretation
-- `docs/S3_MIGRATION.md`: smoke-vs-eval dataset roles, prefix rules, and migration safety notes
-- `docs/RUST_CRATE_DOCS.md`: external Rust dependency documentation index
-- `docs/WEB_APP_DEPLOYMENT.md`: browser app publish, app smoke checks, and app-specific troubleshooting
+Start with [docs/README.md](docs/README.md) for a grouped index. Quick links:
+
+- `docs/reference/ARCHITECTURE.md`: component-level system overview
+- `docs/reference/API_CONTRACT.md`: request, response, auth, and filter grammar reference
+- `docs/product/COMPETITION_STRATEGY.md`: rubric-optimized plan for maximizing Handshake x OpenAI Codex Creator Challenge scoring
+- `docs/reference/DATA_SPEC.md`: synthetic dataset schema and seed script behavior
+- `docs/product/DEMO_PLAN.md`: recommended live-demo structure, memorable queries, and proof points
+- `docs/guides/DEPLOYMENT_RUNBOOK.md`: canonical search/eval operator path for dataset refresh, stack rollout, deployed proof rerun entrypoint, and rollback
+- `docs/guides/OPENAI_API_KEY_SETUP.md`: local embedding credential setup reference
+- `docs/product/PERSONA.md`: primary user persona and product framing anchor
+- `docs/product/PROOF_OF_VALUE.md`: committed local proof-of-value pack for demos and pitch
+- `docs/guides/deployed-proof-runbook.md`: proof flags, acceptance rules, useful flags, and artifact interpretation after starting from the deployment runbook
+- `docs/product/PITCH_VIDEO_PLAN.md`: three-minute finalist pitch structure and asset checklist
+- `docs/project/PROJECT_STATE.md`: current implementation snapshot
+- `docs/project/NEXT_STEPS.md`: active prioritized backlog
+- `docs/project/FINAL_STEPS.md`: late-stage checklist
+- `docs/project/BENCHMARK_EVIDENCE.md`: canonical Step 4 judge-facing benchmark numbers
+- `docs/guides/retrieval-eval-runbook.md`: local labeled relevance harness execution and metric interpretation
+- `docs/guides/S3_MIGRATION.md`: smoke-vs-eval dataset roles, prefix rules, and migration safety notes
+- `docs/reference/RUST_CRATE_DOCS.md`: external Rust dependency documentation index
+- `docs/guides/WEB_APP_DEPLOYMENT.md`: browser app publish, app smoke checks, and app-specific troubleshooting
+- `docs/product/UI_JUDGE_IMPROVEMENTS.md`: UI and judge-facing improvement notes
 - `docs/features/deployed-proof-path.md`: feature spec for the deployed proof-path implementation
 
 Superseded planning docs and older README/state snapshots are preserved in `docs/deprecated/` with timestamped filenames.

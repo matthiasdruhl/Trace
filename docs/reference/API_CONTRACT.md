@@ -39,6 +39,13 @@ The request body is a JSON object with these fields:
 | `columns` | `string[]` | no | Explicit projection from the allowed field list |
 | `sql_filter` | string | no | Optional constrained metadata filter |
 
+Unknown fields are rejected with `400 INVALID_JSON`.
+
+### `query_vector`
+
+- Must match the configured query dimension
+- All elements must be finite numbers; `NaN`, `Infinity`, and `-Infinity` are rejected with `400 INVALID_VECTOR_VALUE`
+
 ### `k` and `limit`
 
 - If omitted, the effective limit is `10`
@@ -167,10 +174,11 @@ Common error codes:
 | `INVALID_LIMIT` | 400 | `k` or `limit` was zero |
 | `INVALID_COLUMN` | 400 | Unsupported projection field or invalid `include_text` combination |
 | `INVALID_VECTOR_DIM` | 400 | Query vector length mismatch |
+| `INVALID_VECTOR_VALUE` | 400 | Query vector contained a non-finite value |
 | `SQL_FILTER_TOO_LONG` | 400 | `sql_filter` exceeded the maximum length |
 | `INVALID_SQL_FILTER` | 400 | Filter syntax or field usage was unsupported |
 | `INVALID_FILTER_VALUE` | 400 | Filter literal value was invalid, usually a bad timestamp |
-| `INTERNAL` | 500 | Internal server failure with masked client message |
+| `INTERNAL` | 500 | Internal server failure with the fixed client message `Internal Server Error` |
 
 ## MCP bridge contract
 
@@ -184,3 +192,7 @@ The MCP bridge exposes `search_cold_archive` with these arguments:
 | `include_text` | boolean | no | Requests `text_content` in the results |
 
 The bridge generates an embedding, converts the request to the Lambda search JSON shape, and returns the raw JSON response as text to the MCP caller.
+
+## App HTTP API contract
+
+The app-facing `POST /api/search` route accepts natural-language `queryText`, optional typed filters, `limit`, and optional `retrievalStrategy`. It does not accept raw `sql_filter`; raw filters are limited to direct Lambda callers and the MCP `search_cold_archive` tool path.

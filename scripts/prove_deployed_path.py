@@ -1,7 +1,7 @@
 """
 End-to-end deployed validation of Trace: direct HTTP POST /search and MCP search_cold_archive.
 
-See docs/deployed-proof-runbook.md for operator steps.
+See docs/guides/deployed-proof-runbook.md for operator steps.
 """
 
 from __future__ import annotations

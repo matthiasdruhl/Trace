@@ -410,7 +410,7 @@ def assert_response_query_dim(response: dict[str, Any], expected: int) -> None:
     if "query_dim" not in response:
         raise TraceRuntimeError(
             "Successful response is missing required field 'query_dim' "
-            f"(expected integer {expected}; see docs/API_CONTRACT.md)."
+            f"(expected integer {expected}; see docs/reference/API_CONTRACT.md)."
         )
     query_dim = response["query_dim"]
     if isinstance(query_dim, bool) or not isinstance(query_dim, int):

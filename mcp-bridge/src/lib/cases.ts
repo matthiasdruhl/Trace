@@ -13,22 +13,11 @@ export type CuratedCase = {
 
 const CURATED_CASES: CuratedCase[] = [
   {
-    id: "overdue-inspection-audit",
-    title: "Overdue inspection audit",
-    subtitle: "Semantic-only win",
-    narrative:
-      "Show the archive can retrieve overdue inspection audit cases without a metadata prefilter.",
-    queryText: "recent vehicle inspection audit with overdue paperwork",
-    filters: {},
-    fixtureCaseId: "unfiltered-demo",
-    fixtureAvailable: true,
-  },
-  {
     id: "nyc-safety-incident",
-    title: "NYC safety incident",
-    subtitle: "Filtering win",
+    title: "NYC safety audit response",
+    subtitle: "Recommended first run",
     narrative:
-      "Use city and document-type filters to narrow a semantic query to the exact regulatory slice.",
+      "Use preserved city and document scope to narrow a vague audit request to the exact regulatory records worth handing off.",
     queryText: "safety incident reports in New York with supporting narrative",
     filters: {
       cityCode: "NYC-TLC",
@@ -38,18 +27,32 @@ const CURATED_CASES: CuratedCase[] = [
     fixtureAvailable: true,
   },
   {
-    id: "insurance-lapse-coverage-gap",
-    title: "Insurance lapse / coverage gap",
-    subtitle: "Operator-value case",
+    id: "overdue-inspection-audit",
+    title: "Overdue inspection audit",
+    subtitle: "Semantic-only alternate",
     narrative:
-      "Surface insurance lapse cases that matter operationally when coverage gaps can suspend vehicles.",
-    queryText: "insurance lapse or coverage gap for fleet vehicles",
+      "Show the archive can still retrieve overdue inspection audit cases without a metadata prefilter.",
+    queryText: "recent vehicle inspection audit with overdue paperwork",
+    filters: {},
+    fixtureCaseId: "unfiltered-demo",
+    fixtureAvailable: true,
+  },
+  /**
+   * Stable 0-result pairing for refinement UX (verified 2026-04 on Trace regulatory demo
+   * archive: NYC-TLC rows skew to safety incidents; Insurance_Lapse_Report is scarce there).
+   */
+  {
+    id: "narrow-slice-zero-results",
+    title: "Empty slice refinement drill",
+    subtitle: "Stable zero-match path",
+    narrative:
+      "Practice refinement when the slice uses supported literals but no records satisfy the cross-filter.",
+    queryText: "insurance lapse paperwork tied to New York fleet operations",
     filters: {
-      cityCode: "CHI-BACP",
+      cityCode: "NYC-TLC",
       docType: "Insurance_Lapse_Report",
     },
-    fixtureCaseId: "filtered-chi-insurance",
-    fixtureAvailable: false,
+    fixtureAvailable: true,
   },
 ];
 

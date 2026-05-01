@@ -11,7 +11,7 @@ For bucket **`trace-vault`**, keep roles separate:
 | **Random-vector smoke dataset** (old seed) | `s3://trace-vault/uber_audit.lance/` | **Smoke / infra only** — permissions, Lambda, MCP plumbing, rollback anchor. **Not** eval data; **not** semantic-eval truth. **Keep at this prefix**; **do not overwrite or delete** during migration. |
 | **Embedding-backed eval dataset** (new) | `s3://trace-vault/trace/eval/lance/` | **Eval / honest demos** — generate locally, upload here, **validate**, **then** repoint stack/Lambda. |
 
-Do **not** move **`uber_audit.lance/`** into **`trace/eval/lance/`** and treat it as eval data. Do **not** overwrite the smoke prefix in place to “upgrade” it—put the embedding-backed build under **`trace/eval/lance/`** instead. Do **not** mutate files in place under a fixed URI and expect immediate consistency—**prefer a new eval prefix and config repoint** (see [S3_MIGRATION.md](../S3_MIGRATION.md)); that avoids ambiguity and is safer for cache/cutover than replacing objects behind an unchanged URI. These proof cases validate the **deployed path**, not retrieval benchmark quality.
+Do **not** move **`uber_audit.lance/`** into **`trace/eval/lance/`** and treat it as eval data. Do **not** overwrite the smoke prefix in place to “upgrade” it—put the embedding-backed build under **`trace/eval/lance/`** instead. Do **not** mutate files in place under a fixed URI and expect immediate consistency—**prefer a new eval prefix and config repoint** (see [S3_MIGRATION.md](../guides/S3_MIGRATION.md)); that avoids ambiguity and is safer for cache/cutover than replacing objects behind an unchanged URI. These proof cases validate the **deployed path**, not retrieval benchmark quality.
 
 **Cutover discipline:** repoint production Lambda / stack parameters to the eval URI **only after** the new prefix is validated. **Rollback** continues to use **`s3://trace-vault/uber_audit.lance/`** (smoke URI unchanged).
 
@@ -19,7 +19,7 @@ Do **not** move **`uber_audit.lance/`** into **`trace/eval/lance/`** and treat i
 
 Prove the Trace runtime path end to end against a real deployed stack and a real S3-backed Lance dataset.
 
-This feature operationalizes the deployed-proof milestone in [docs/NEXT_STEPS.md](../NEXT_STEPS.md):
+This feature operationalizes the deployed-proof milestone in [docs/project/NEXT_STEPS.md](../project/NEXT_STEPS.md):
 
 - deploy the current SAM stack against a real S3-backed Lance dataset
 - confirm `POST /search` returns real results in the deployed environment
@@ -131,7 +131,7 @@ Schema:
 }
 ```
 
-**`require_filter_match` is not grammar validation.** It is a best-effort proof check: the runner extracts supported `city_code` / `doc_type` literal filters from `sql_filter` and asserts each returned row matches them. Today that includes `field = '...'` and `field IN ('...', '...')` forms for those two metadata fields only, joined by top-level `AND`. It does not prove that arbitrary `sql_filter` text was interpreted correctly overall. Operators must not treat a passing run as verification of the full filter language in [API_CONTRACT.md](../API_CONTRACT.md#sql_filter-grammar); that remains the search service's responsibility. When `require_filter_match` is true, unsupported shapes are rejected instead of partially interpreted so the proof layer cannot misstate SQL semantics. Shapes such as inequalities, `OR`, `NOT`, repeated same-field clauses, and nested boolean logic are outside the current proof assertions; golden cases that rely on those broader semantics should leave `require_filter_match` false and rely on non-empty results plus manual spot checks.
+**`require_filter_match` is not grammar validation.** It is a best-effort proof check: the runner extracts supported `city_code` / `doc_type` literal filters from `sql_filter` and asserts each returned row matches them. Today that includes `field = '...'` and `field IN ('...', '...')` forms for those two metadata fields only, joined by top-level `AND`. It does not prove that arbitrary `sql_filter` text was interpreted correctly overall. Operators must not treat a passing run as verification of the full filter language in [API_CONTRACT.md](../reference/API_CONTRACT.md#sql_filter-grammar); that remains the search service's responsibility. When `require_filter_match` is true, unsupported shapes are rejected instead of partially interpreted so the proof layer cannot misstate SQL semantics. Shapes such as inequalities, `OR`, `NOT`, repeated same-field clauses, and nested boolean logic are outside the current proof assertions; golden cases that rely on those broader semantics should leave `require_filter_match` false and rely on non-empty results plus manual spot checks.
 
 ### Per-run manifest
 
@@ -200,7 +200,7 @@ python scripts/prove_deployed_path.py \
 
 Use `--dataset-uri` that matches the stack (smoke URI above, or `s3://trace-vault/trace/eval/lance/` after eval upload and cutover). Include the trailing `/` for the Lance dataset root.
 
-The runner consumes the existing search contract from [docs/API_CONTRACT.md](../API_CONTRACT.md).
+The runner consumes the existing search contract from [docs/reference/API_CONTRACT.md](../reference/API_CONTRACT.md).
 
 ## Component Architecture
 

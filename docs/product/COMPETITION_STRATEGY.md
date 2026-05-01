@@ -44,7 +44,7 @@ that story.
 
 ## 3. Score-maximizing additions beyond the current engineering backlog
 
-These items are not fully captured by `docs/NEXT_STEPS.md`, but they are high
+These items are not fully captured by `docs/project/NEXT_STEPS.md`, but they are high
 leverage for competition scoring.
 
 ### Clarity

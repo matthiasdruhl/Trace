@@ -82,6 +82,37 @@ class TestSourceGeneration(unittest.TestCase):
         right = seed.build_source_dataframe(6, 43)
         self.assertNotEqual(left.to_dict("records"), right.to_dict("records"))
 
+    def test_source_generation_includes_trust_and_provenance_fields(self) -> None:
+        df = seed.build_source_dataframe(3, 42)
+
+        self.assertTrue(
+            {
+                "source_record_id",
+                "source_collection",
+                "source_excerpt",
+                "data_classification",
+                "redaction_status",
+                "dataset_label",
+                "dataset_kind",
+            }.issubset(df.columns)
+        )
+        for record in df.to_dict("records"):
+            self.assertEqual(record["source_record_id"], record["incident_id"])
+            self.assertEqual(
+                record["source_collection"], seed.DEFAULT_SOURCE_COLLECTION
+            )
+            self.assertEqual(
+                record["data_classification"], seed.DEFAULT_DATA_CLASSIFICATION
+            )
+            self.assertEqual(
+                record["redaction_status"], seed.DEFAULT_REDACTION_STATUS
+            )
+            self.assertEqual(record["dataset_label"], seed.DEFAULT_DATASET_LABEL)
+            self.assertEqual(record["dataset_kind"], seed.DEFAULT_DATASET_KIND)
+            self.assertIsInstance(record["source_excerpt"], str)
+            self.assertGreater(len(record["source_excerpt"]), 0)
+            self.assertLessEqual(len(record["source_excerpt"]), 280)
+
 
 class TestCliValidation(unittest.TestCase):
     def test_random_mode_does_not_require_api_key(self) -> None:

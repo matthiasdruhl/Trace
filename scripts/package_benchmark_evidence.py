@@ -23,7 +23,7 @@ from prove_deployed_path import EVAL_DATASET_URI, EVAL_STACK_NAME  # noqa: E402
 from trace_runtime import TraceRuntimeError, lambda_function_name_from_arn, write_json  # noqa: E402
 
 
-DEFAULT_DOC_PATH = Path("docs/BENCHMARK_EVIDENCE.md")
+DEFAULT_DOC_PATH = Path("docs/project/BENCHMARK_EVIDENCE.md")
 DEFAULT_SNAPSHOT_PATH = Path("fixtures/eval/benchmark_evidence_snapshot.json")
 DEFAULT_RETRIEVAL_CASES_PATH = Path("fixtures/eval/retrieval_relevance_cases.json")
 DEFAULT_LOCAL_VALIDATION_CASES_PATH = Path("fixtures/eval/local_validation_cases.json")

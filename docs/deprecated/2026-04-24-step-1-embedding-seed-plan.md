@@ -2,7 +2,7 @@
 
 ## Summary
 
-Implement `docs/NEXT_STEPS.md` item 1 only: upgrade `scripts/seed.py` from a
+Implement `docs/project/NEXT_STEPS.md` item 1 only: upgrade `scripts/seed.py` from a
 random-vector-only generator into a reproducible two-mode seed pipeline, where
 real OpenAI embeddings are the default eval/demo path and random vectors remain
 an explicit smoke-only mode. This step stops at code, tests, and docs; it does
@@ -85,14 +85,14 @@ not include the first eval-dataset upload, SAM cutover, or deployed proof run.
 
 ### Docs and wording cleanup
 
-- Update `README.md`, `docs/DATA_SPEC.md`, `docs/ARCHITECTURE.md`, and
-  `docs/PROJECT_STATE.md` to describe:
+- Update `README.md`, `docs/reference/DATA_SPEC.md`, `docs/reference/ARCHITECTURE.md`, and
+  `docs/project/PROJECT_STATE.md` to describe:
   - the new `openai` default path
   - the explicit `random` smoke path
   - the required `OPENAI_API_KEY`
   - the default model and 1536-dimension assumption
   - the new local source/manifest artifacts
-- Update `docs/NEXT_STEPS.md` so Step 1's acceptance language matches the
+- Update `docs/project/NEXT_STEPS.md` so Step 1's acceptance language matches the
   implemented mode split and manifest output.
 - Fix stale wording in deployed-proof docs that still refers to proof-path work
   as "NEXT_STEPS step 1"; rename that wording so backlog numbering stays
@@ -124,7 +124,7 @@ not include the first eval-dataset upload, SAM cutover, or deployed proof run.
 
 ## Assumptions
 
-- "This step" means `docs/NEXT_STEPS.md` item 1 only.
+- "This step" means `docs/project/NEXT_STEPS.md` item 1 only.
 - The default model is `text-embedding-3-small` because it already matches the
   MCP bridge and current Lambda query-vector contract.
 - Step 1 does not change Lambda code, API contract, SAM config, or the live S3

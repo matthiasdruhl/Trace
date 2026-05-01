@@ -48,7 +48,7 @@ scope just for the sake of it.
 - Use **three fixed demo queries**, each with **one line** on what the viewer
   should notice, not just the query text.
 - Point directly to the strongest current assets:
-  `docs/PROOF_OF_VALUE.md`, `docs/BENCHMARK_EVIDENCE.md`, and the main app
+  `docs/product/PROOF_OF_VALUE.md`, `docs/project/BENCHMARK_EVIDENCE.md`, and the main app
   demo.
 
 **Outcome:** Better **Clarity** and **Usefulness** for both human and
@@ -100,7 +100,7 @@ failures.
 - Use **one signature UI moment** that is **named** and repeated across the
   README, demo, and video.
 - Reuse the same memorable proof stories already committed in
-  `docs/PROOF_OF_VALUE.md` so the README, demo, and pitch all reinforce the
+  `docs/product/PROOF_OF_VALUE.md` so the README, demo, and pitch all reinforce the
   same examples.
 
 **Outcome:** Better recall when judges compare many entries.
@@ -117,7 +117,7 @@ failures.
 - Keep **explicit boundaries** where the product does **not** claim certainty,
   such as "why this matched"; that reads as maturity to technical judges.
 - Keep the benchmark line consistent everywhere with
-  `docs/BENCHMARK_EVIDENCE.md` so the README, demo, and pitch do not drift.
+  `docs/project/BENCHMARK_EVIDENCE.md` so the README, demo, and pitch do not drift.
 
 **Outcome:** Protects and raises **Round 3** video scoring when Step 8 in
 `NEXT_STEPS` is done.

@@ -1,6 +1,6 @@
 # Trace Filtering Implementation README
 
-Status note (2026-04-21): the filtering system described here has already been implemented in the active codebase. This document is retained as the implementation rationale and design record for the current constrained `sql_filter` model; the live contract is documented in `docs/API_CONTRACT.md`.
+Status note (2026-04-21): the filtering system described here has already been implemented in the active codebase. This document is retained as the implementation rationale and design record for the current constrained `sql_filter` model; the live contract is documented in `docs/reference/API_CONTRACT.md`.
 
 This document specifies how to implement **real metadata filtering** in `lambda-engine` for Trace's current architecture.
 
@@ -294,7 +294,7 @@ The important thing is that:
 - invalid filters are client errors
 - they must not surface backend parser internals verbatim
 
-### 5. Update `docs/API_CONTRACT.md`
+### 5. Update `docs/reference/API_CONTRACT.md`
 
 Historically, this required changing the `sql_filter` description from:
 
@@ -617,7 +617,7 @@ This implementation is complete when all of the following are true:
 3. only the allowed metadata fields can be filtered
 4. timestamp filters are validated
 5. the Lambda test suite covers parser, compiler, and request integration behavior
-6. `docs/API_CONTRACT.md` documents the now-live filtering behavior
+6. `docs/reference/API_CONTRACT.md` documents the now-live filtering behavior
 7. Trace can demo a real hybrid search query such as:
 
 ```text

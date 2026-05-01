@@ -2,9 +2,9 @@
 
 Last updated: 2026-04-29
 
-Use [README.md](C:/Users/matth/Projects/Trace/Trace/README.md) to choose the
+Use [README.md](../../README.md) to choose the
 right workflow and
-[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+[docs/guides/DEPLOYMENT_RUNBOOK.md](DEPLOYMENT_RUNBOOK.md)
 for the main operator path. This document is the credential setup reference for
 local embedding-backed commands only.
 
@@ -21,7 +21,7 @@ If `OPENAI_API_KEY` is missing in a fresh shell, local embedding-backed commands
 
 That is expected until the key is added for the current shell or persisted at
 the user level. For the full eval dataset workflow, return to
-[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md).
+[docs/guides/DEPLOYMENT_RUNBOOK.md](DEPLOYMENT_RUNBOOK.md).
 
 ## What the key is needed for
 
@@ -100,7 +100,7 @@ echo $env:OPENAI_API_KEY
 ## 6. Return to the canonical workflow
 
 Once the key is set, use
-[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+[docs/guides/DEPLOYMENT_RUNBOOK.md](DEPLOYMENT_RUNBOOK.md)
 for the canonical eval dataset, validation, promotion, and proof workflow
 instead of treating this document as the main procedure guide.
 

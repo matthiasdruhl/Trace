@@ -6,7 +6,7 @@ Filename convention:
 
 - `YYYY-MM-DD-original-name.md`
 
-These files are retained for historical context only. Use the top-level files in `docs/` and the repository `README.md` as the active documentation set.
+These files are retained for historical context only. Use [`docs/README.md`](../README.md) (index of active docs) and the repository [`README.md`](../../README.md) as the starting points.
 
 Recently archived from the active docs set:
 

@@ -15,7 +15,7 @@ The active code path supports:
 - a browser-facing investigation workflow with structured filters, curated cases,
   surfaced evidence, and deterministic handoff output
 
-Against the active backlog in `docs/NEXT_STEPS.md`, the current status is:
+Against the active backlog in `docs/project/NEXT_STEPS.md`, the current status is:
 
 - step 1 (clarify the product story everywhere): complete
 - step 2 (build a strong demo surface): complete
@@ -121,7 +121,7 @@ Implemented in `scripts/evaluate_retrieval.py`, `scripts/filter_expr.py`, and `f
 
 Current local retrieval-eval status:
 
-- the same local eval corpus now feeds the committed proof pack in `docs/PROOF_OF_VALUE.md`
+- the same local eval corpus now feeds the committed proof pack in `docs/product/PROOF_OF_VALUE.md`
 - the latest local retrieval evaluation used the local eval dataset under `.test-tmp/eval-seed/`
 - the latest local retrieval evaluation used the default `vector_postfilter` candidate multiplier of `10` with no fixed candidate-limit override
 - `trace_prefilter_vector` reached `1.000` average `Recall@k`, `0.600` average `Precision@k`, and `1.000` filtered strict accuracy on the current labeled set
@@ -145,20 +145,20 @@ Boundary on these claims:
 ### Benchmark evidence packaging
 
 Implemented in `scripts/run_deployed_benchmark.py`,
-`scripts/package_benchmark_evidence.py`, `docs/BENCHMARK_EVIDENCE.md`,
+`scripts/package_benchmark_evidence.py`, `docs/project/BENCHMARK_EVIDENCE.md`,
 `fixtures/eval/benchmark_evidence_snapshot.json`, and `artifacts/benchmarks/`:
 
 - a dedicated deployed benchmark runner now records cold direct-Lambda samples, warm direct-Lambda samples, and warm deployed HTTP samples against the eval stack
 - the latest deployed benchmark artifact completed at `artifacts/benchmarks/20260428T195740Z`
 - that benchmark targeted stack `trace-eval`, dataset `s3://trace-vault/trace/eval/lance/`, function `trace-eval-trace-search`, architecture `arm64`, and configured memory `512` MB
 - the latest benchmark summary recorded direct-Lambda cold-sample median `Init Duration` `97.480` ms, direct-Lambda cold billed median `1728.000` ms, warm HTTP latency median `187.761` ms, warm reported `took_ms` median `92.000` ms, max memory used `82` MB, and estimated warm search-runtime cost `0.00000164` USD/query
-- the canonical Step 4 judge-facing packaging now lives in `docs/BENCHMARK_EVIDENCE.md`, with the same numbers mirrored in `fixtures/eval/benchmark_evidence_snapshot.json`
+- the canonical Step 4 judge-facing packaging now lives in `docs/project/BENCHMARK_EVIDENCE.md`, with the same numbers mirrored in `fixtures/eval/benchmark_evidence_snapshot.json`
 - the cost notes are intentionally scoped to Lambda request cost, Lambda compute cost, and API Gateway HTTP request cost; query-embedding spend is excluded from the headline cost number
 
 ### Proof-of-value comparison pack
 
 Implemented in `scripts/build_proof_of_value.py`, `fixtures/eval/proof_of_value_cases.json`,
-`fixtures/eval/proof_of_value_snapshot.json`, and `docs/PROOF_OF_VALUE.md`:
+`fixtures/eval/proof_of_value_snapshot.json`, and `docs/product/PROOF_OF_VALUE.md`:
 
 - a committed side-by-side artifact now packages the insurance lapse workflow where keyword-only search fails but Trace succeeds
 - a second committed artifact shows that semantic-only retrieval is still too broad for the Chicago insurance workflow until metadata scope is applied
@@ -185,7 +185,7 @@ Current deployed proof status:
 - that run used stack `trace-eval`, dataset `s3://trace-vault/trace/eval/lance`, region `us-east-1`, and model `text-embedding-3-small`
 - all proof cases in that run passed for both direct HTTP and MCP traversal
 - representative scrubbed stable fixtures are now committed under `fixtures/deployed/examples/` for `unfiltered-demo` and `filtered-nyc-safety`
-- `docs/deployed-proof-runbook.md` now defines the repeatable acceptance sequence for reruns and fixture promotion
+- `docs/guides/deployed-proof-runbook.md` now defines the repeatable acceptance sequence for reruns and fixture promotion
 
 Important boundary on those claims:
 
@@ -222,7 +222,7 @@ Deployed in AWS (`us-east-1`):
 ## What is not fully done
 
 - Step 4 benchmark and evaluation evidence now exists, but the benchmark numbers remain scoped to the current eval stack and current labeled corpus rather than a broad benchmark suite
-- There is not yet a completed deployment history for smoke/eval stacks, although `docs/DEPLOYMENT_RUNBOOK.md` now documents that workflow
+- There is not yet a completed deployment history for smoke/eval stacks, although `docs/guides/DEPLOYMENT_RUNBOOK.md` now documents that workflow
 
 ## Current repo guidance
 

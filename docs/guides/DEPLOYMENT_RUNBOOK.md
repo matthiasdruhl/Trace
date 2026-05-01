@@ -25,10 +25,10 @@ Use this document when you need the main search/eval operator path:
 
 Use other docs for narrower tasks:
 
-- use [docs/WEB_APP_DEPLOYMENT.md](C:/Users/matth/Projects/Trace/Trace/docs/WEB_APP_DEPLOYMENT.md) for the browser-facing app publish flow, CloudFront invalidation, app smoke checks, and app-specific incident handling
-- use [docs/deployed-proof-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/deployed-proof-runbook.md) for proof flags, full acceptance rules, artifact review, and stable fixture promotion
-- use [docs/OPENAI_API_KEY_SETUP.md](C:/Users/matth/Projects/Trace/Trace/docs/OPENAI_API_KEY_SETUP.md) for local embedding credential setup
-- use [docs/retrieval-eval-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/retrieval-eval-runbook.md) for the local labeled relevance harness only
+- use [docs/guides/WEB_APP_DEPLOYMENT.md](WEB_APP_DEPLOYMENT.md) for the browser-facing app publish flow, CloudFront invalidation, app smoke checks, and app-specific incident handling
+- use [docs/guides/deployed-proof-runbook.md](deployed-proof-runbook.md) for proof flags, full acceptance rules, artifact review, and stable fixture promotion
+- use [docs/guides/OPENAI_API_KEY_SETUP.md](OPENAI_API_KEY_SETUP.md) for local embedding credential setup
+- use [docs/guides/retrieval-eval-runbook.md](retrieval-eval-runbook.md) for the local labeled relevance harness only
 
 This document is written for the current Trace search/eval setup:
 
@@ -87,7 +87,7 @@ Expected results:
 A local `OPENAI_API_KEY` shell variable is required for dataset seeding, local
 embedding-backed tests, and proof tooling. For the deployed browser app secret
 path, use
-[docs/WEB_APP_DEPLOYMENT.md](C:/Users/matth/Projects/Trace/Trace/docs/WEB_APP_DEPLOYMENT.md).
+[docs/guides/WEB_APP_DEPLOYMENT.md](WEB_APP_DEPLOYMENT.md).
 
 If AWS credentials are not configured persistently, use either:
 
@@ -214,7 +214,7 @@ Refresh rules:
 - after any refresh that changes the deployed eval data or stack configuration, rerun the deployed proof flow against `trace-eval`
 
 For dataset role and prefix-safety details, use
-[docs/S3_MIGRATION.md](C:/Users/matth/Projects/Trace/Trace/docs/S3_MIGRATION.md).
+[docs/guides/S3_MIGRATION.md](S3_MIGRATION.md).
 
 ## 4. Deploy the smoke stack
 
@@ -321,7 +321,7 @@ Acceptance criteria:
 - use the proof runbook for the detailed acceptance standard, degraded modes, and artifact review rules
 
 Use
-[docs/deployed-proof-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/deployed-proof-runbook.md)
+[docs/guides/deployed-proof-runbook.md](deployed-proof-runbook.md)
 for:
 
 - degraded or scaffold proof modes such as `--dry-run`, `--skip-mcp`, `--allow-missing-vectors`, and `--mock-embeddings`
@@ -348,11 +348,11 @@ The following have already happened in this workspace:
 
 Use these docs when the main operator path branches:
 
-- browser app publish failures, app health checks, or app-specific emergency overrides: [docs/WEB_APP_DEPLOYMENT.md](C:/Users/matth/Projects/Trace/Trace/docs/WEB_APP_DEPLOYMENT.md)
-- proof flags, artifact review, and stable fixture promotion: [docs/deployed-proof-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/deployed-proof-runbook.md)
-- local retrieval harness execution and metrics: [docs/retrieval-eval-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/retrieval-eval-runbook.md)
-- dataset role, prefix, and migration safety rules: [docs/S3_MIGRATION.md](C:/Users/matth/Projects/Trace/Trace/docs/S3_MIGRATION.md)
-- local OpenAI key setup for embedding-backed commands: [docs/OPENAI_API_KEY_SETUP.md](C:/Users/matth/Projects/Trace/Trace/docs/OPENAI_API_KEY_SETUP.md)
+- browser app publish failures, app health checks, or app-specific emergency overrides: [docs/guides/WEB_APP_DEPLOYMENT.md](WEB_APP_DEPLOYMENT.md)
+- proof flags, artifact review, and stable fixture promotion: [docs/guides/deployed-proof-runbook.md](deployed-proof-runbook.md)
+- local retrieval harness execution and metrics: [docs/guides/retrieval-eval-runbook.md](retrieval-eval-runbook.md)
+- dataset role, prefix, and migration safety rules: [docs/guides/S3_MIGRATION.md](S3_MIGRATION.md)
+- local OpenAI key setup for embedding-backed commands: [docs/guides/OPENAI_API_KEY_SETUP.md](OPENAI_API_KEY_SETUP.md)
 
 ## 10. Rollback
 
@@ -375,10 +375,10 @@ and redeploy.
 
 After the first successful eval deployment and proof run, update:
 
-- `docs/PROJECT_STATE.md`
-- `docs/NEXT_STEPS.md`
-- `docs/S3_MIGRATION.md`
-- `docs/deployed-proof-runbook.md`
+- `docs/project/PROJECT_STATE.md`
+- `docs/project/NEXT_STEPS.md`
+- `docs/guides/S3_MIGRATION.md`
+- `docs/guides/deployed-proof-runbook.md`
 
 Those updates should reflect:
 
