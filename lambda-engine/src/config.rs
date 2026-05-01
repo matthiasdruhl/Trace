@@ -114,7 +114,7 @@ fn lance_uri_from_bucket_and_prefix(
     Ok((lance_uri, bucket.to_string(), prefix.to_string()))
 }
 
-/// Environment configuration for the Lambda (see template.yaml and docs/API_CONTRACT.md).
+/// Environment configuration for the Lambda (see template.yaml and docs/reference/API_CONTRACT.md).
 #[derive(Clone, Debug)]
 pub struct EnvConfig {
     /// Normalized `s3://bucket` or `s3://bucket/prefix/...` for Lance (single source of truth).

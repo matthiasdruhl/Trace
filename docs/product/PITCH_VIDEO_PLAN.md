@@ -115,11 +115,11 @@ Prepare these before recording:
 - one short architecture visual
 - one polished live or recorded product demo
 - one side-by-side comparison artifact
-- one metric or benchmark slide sourced from `docs/BENCHMARK_EVIDENCE.md`
+- one metric or benchmark slide sourced from `docs/project/BENCHMARK_EVIDENCE.md`
 - one explanation or evidence-handoff visual
 - one closing slide with the product promise
 
-The committed side-by-side proof pack is `docs/PROOF_OF_VALUE.md`.
+The committed side-by-side proof pack is `docs/product/PROOF_OF_VALUE.md`.
 Use the same two artifact IDs in the pitch script and backup slides:
 
 - `insurance-keyword-gap`
@@ -129,7 +129,7 @@ When citing those artifacts, keep the claim boundary explicit: they are
 selected local retrieval comparisons from the committed eval corpus, not a
 broad benchmark or a deployed-path equivalence claim.
 For the benchmark slide and spoken metric callout, reuse the canonical Step 4
-wording from `docs/BENCHMARK_EVIDENCE.md` so the README, demo, and pitch all
+wording from `docs/project/BENCHMARK_EVIDENCE.md` so the README, demo, and pitch all
 quote the same bounded numbers.
 
 ## 4. Recording guidance

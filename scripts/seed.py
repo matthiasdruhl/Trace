@@ -59,6 +59,11 @@ DEFAULT_ROWS = 2_000
 DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"
 DEFAULT_EMBEDDING_BATCH_SIZE = 32
 DEFAULT_OPENAI_TIMEOUT_SEC = 30.0
+DEFAULT_SOURCE_COLLECTION = "trace-demo-regulatory-archive"
+DEFAULT_DATASET_LABEL = "Trace Regulatory Demo Archive"
+DEFAULT_DATASET_KIND = "regulatory_archive"
+DEFAULT_DATA_CLASSIFICATION = "internal"
+DEFAULT_REDACTION_STATUS = "none"
 
 OPENAI_EMBEDDING_MODELS: dict[str, int] = {
     "text-embedding-3-small": 1536,
@@ -265,6 +270,17 @@ def _stable_incident_id(seed: int, row_index: int) -> str:
     return str(uuid.uuid5(uuid.NAMESPACE_URL, f"trace-seed:{seed}:{row_index}"))
 
 
+def _build_source_excerpt(text: str, *, max_len: int = 280) -> str:
+    collapsed = " ".join(text.split())
+    if len(collapsed) <= max_len:
+        return collapsed
+
+    clipped = collapsed[: max(0, max_len - 3)].rstrip()
+    if " " in clipped:
+        clipped = clipped.rsplit(" ", 1)[0]
+    return f"{clipped}..."
+
+
 def _row_rng(seed: int, row_index: int) -> np.random.Generator:
     digest = hashlib.sha256(f"{seed}:{row_index}".encode("utf-8")).digest()
     seed_int = int.from_bytes(digest[:8], byteorder="big", signed=False)
@@ -338,6 +354,13 @@ def build_source_dataframe(n_rows: int, seed: int) -> pd.DataFrame:
                 "city_code": city_code,
                 "doc_type": doc_type,
                 "text_content": text,
+                "source_record_id": _stable_incident_id(seed, row_index),
+                "source_collection": DEFAULT_SOURCE_COLLECTION,
+                "source_excerpt": _build_source_excerpt(text),
+                "data_classification": DEFAULT_DATA_CLASSIFICATION,
+                "redaction_status": DEFAULT_REDACTION_STATUS,
+                "dataset_label": DEFAULT_DATASET_LABEL,
+                "dataset_kind": DEFAULT_DATASET_KIND,
             }
         )
     return pd.DataFrame.from_records(records)

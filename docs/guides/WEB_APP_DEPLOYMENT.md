@@ -11,7 +11,7 @@ current stack shape:
 - CloudFront + frontend bucket provisioned by `template.yaml`
 
 Use this guide when you want to update the live web app. Use
-[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+[docs/guides/DEPLOYMENT_RUNBOOK.md](DEPLOYMENT_RUNBOOK.md)
 for dataset generation, eval proof workflow, and smoke/eval rollout details.
 
 ## When to use this guide
@@ -30,9 +30,9 @@ Do not use this document as the primary guide for:
 - proof acceptance rules or stable fixture promotion
 
 Those remain in
-[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+[docs/guides/DEPLOYMENT_RUNBOOK.md](DEPLOYMENT_RUNBOOK.md)
 and
-[docs/deployed-proof-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/deployed-proof-runbook.md).
+[docs/guides/deployed-proof-runbook.md](deployed-proof-runbook.md).
 
 ## Current production-style stack values
 
@@ -92,7 +92,7 @@ aws secretsmanager describe-secret `
 ```
 
 This is the deployed app secret path. Use
-[docs/OPENAI_API_KEY_SETUP.md](C:/Users/matth/Projects/Trace/Trace/docs/OPENAI_API_KEY_SETUP.md)
+[docs/guides/OPENAI_API_KEY_SETUP.md](OPENAI_API_KEY_SETUP.md)
 only for local shell credential setup for embedding-backed commands.
 
 ## Which deploy path to use
@@ -103,7 +103,7 @@ Use `scripts/deploy-full.ps1` when you are intentionally publishing the browser
 app together with app-facing backend changes.
 
 Start in
-[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+[docs/guides/DEPLOYMENT_RUNBOOK.md](DEPLOYMENT_RUNBOOK.md)
 first if the change is primarily about:
 
 - dataset refresh
@@ -199,9 +199,9 @@ Expected outputs include:
 
 If the change also touched shared search behavior, stack wiring, or the eval
 dataset, return to
-[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+[docs/guides/DEPLOYMENT_RUNBOOK.md](DEPLOYMENT_RUNBOOK.md)
 for the proof rerun entrypoint and use
-[docs/deployed-proof-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/deployed-proof-runbook.md)
+[docs/guides/deployed-proof-runbook.md](deployed-proof-runbook.md)
 for proof details and artifact review.
 
 Open the live app:
@@ -331,5 +331,5 @@ If the proof runner fails:
 - inspect the latest run under `artifacts/validation-runs/`
 - compare stack outputs and dataset URI with the expected eval values
 - then continue with
-  [docs/deployed-proof-runbook.md](C:/Users/matth/Projects/Trace/Trace/docs/deployed-proof-runbook.md)
+  [docs/guides/deployed-proof-runbook.md](deployed-proof-runbook.md)
   for proof-specific debugging and acceptance checks

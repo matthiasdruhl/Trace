@@ -14,6 +14,8 @@ export const APP_LIMIT_MAX = 10;
 export const DEFAULT_FETCH_TIMEOUT_MS = 10_000;
 export const SAFE_BODY_PREVIEW_CHARS = 200;
 export const FATAL_ERROR_MESSAGE_CHARS = 320;
+/** Max trimmed characters for `/api/interpret-scope` queryText (abuse/latency guard). */
+export const APP_INTERPRET_SCOPE_QUERY_MAX_CHARS = 8192;
 
 export type FetchLike = typeof fetch;
 

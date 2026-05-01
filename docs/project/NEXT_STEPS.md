@@ -17,9 +17,9 @@ ordered around what will most improve:
 - execution
 - polish
 
-Use `docs/PROJECT_STATE.md` for a detailed snapshot of what already exists.
-Use `docs/COMPETITION_STRATEGY.md`, `docs/DEMO_PLAN.md`, and
-`docs/PITCH_VIDEO_PLAN.md` for scoring-oriented guidance.
+Use `docs/project/PROJECT_STATE.md` for a detailed snapshot of what already exists.
+Use `docs/product/COMPETITION_STRATEGY.md`, `docs/product/DEMO_PLAN.md`, and
+`docs/product/PITCH_VIDEO_PLAN.md` for scoring-oriented guidance.
 
 ## Status terms
 
@@ -158,7 +158,7 @@ Why this matters:
 
 What shipped:
 
-- a committed proof pack now exists under `docs/PROOF_OF_VALUE.md`
+- a committed proof pack now exists under `docs/product/PROOF_OF_VALUE.md`
 - `insurance-keyword-gap` shows the insurance lapse workflow where `keyword_only` returned `0/3` labeled positives and Trace returned `3/3`
 - `insurance-scope-gap` shows the Chicago insurance workflow where semantic-only retrieval kept the right intent but only `3/5` top rows stayed in scope, while Trace kept `5/5`
 - the machine-readable snapshot now lives under `fixtures/eval/proof_of_value_snapshot.json`
@@ -186,7 +186,7 @@ Why this matters:
 
 What shipped:
 
-- the canonical Step 4 evidence pack now lives in `docs/BENCHMARK_EVIDENCE.md`
+- the canonical Step 4 evidence pack now lives in `docs/project/BENCHMARK_EVIDENCE.md`
 - the machine-readable snapshot now lives in `fixtures/eval/benchmark_evidence_snapshot.json`
 - the local retrieval harness now contributes repeatable headline claims scoped to the current labeled eval corpus
 - the deployed benchmark path now packages cold-start, warm latency, memory, and cost-per-query evidence for the current `trace-eval` stack
@@ -221,17 +221,17 @@ Why this matters:
 
 Current note:
 
-- the repo already has active guidance in `README.md`, `docs/DEPLOYMENT_RUNBOOK.md`, `docs/WEB_APP_DEPLOYMENT.md`, `docs/deployed-proof-runbook.md`, `docs/retrieval-eval-runbook.md`, `docs/S3_MIGRATION.md`, and `docs/OPENAI_API_KEY_SETUP.md`
+- the repo already has active guidance in `README.md`, `docs/guides/DEPLOYMENT_RUNBOOK.md`, `docs/guides/WEB_APP_DEPLOYMENT.md`, `docs/guides/deployed-proof-runbook.md`, `docs/guides/retrieval-eval-runbook.md`, `docs/guides/S3_MIGRATION.md`, and `docs/guides/OPENAI_API_KEY_SETUP.md`
 - Step 5 is complete in this workspace
 - the active docs now route operators through one clearer search/eval path, one browser app publish path, one proof-specific reference path, and narrower support references
 
 What shipped:
 
 - `README.md` now acts as the top-level operator router instead of a second procedural runbook
-- `docs/DEPLOYMENT_RUNBOOK.md` now owns the canonical search/eval operator flow, including dataset refresh, promotion, deployed proof rerun entrypoint, and rollback
-- `docs/WEB_APP_DEPLOYMENT.md` now focuses on browser app publishing, app-specific smoke checks, app troubleshooting, and first-time deployed secret setup
-- `docs/deployed-proof-runbook.md` now focuses on proof-specific flags, acceptance rules, artifact review, and stable fixture promotion after operators start from the deployment runbook
-- `docs/S3_MIGRATION.md`, `docs/retrieval-eval-runbook.md`, and `docs/OPENAI_API_KEY_SETUP.md` now read as narrower support references instead of competing primary workflows
+- `docs/guides/DEPLOYMENT_RUNBOOK.md` now owns the canonical search/eval operator flow, including dataset refresh, promotion, deployed proof rerun entrypoint, and rollback
+- `docs/guides/WEB_APP_DEPLOYMENT.md` now focuses on browser app publishing, app-specific smoke checks, app troubleshooting, and first-time deployed secret setup
+- `docs/guides/deployed-proof-runbook.md` now focuses on proof-specific flags, acceptance rules, artifact review, and stable fixture promotion after operators start from the deployment runbook
+- `docs/guides/S3_MIGRATION.md`, `docs/guides/retrieval-eval-runbook.md`, and `docs/guides/OPENAI_API_KEY_SETUP.md` now read as narrower support references instead of competing primary workflows
 
 Definition of done:
 
@@ -246,7 +246,7 @@ Current note:
 Recommended output:
 
 - refined `README.md`
-- refined `docs/DEPLOYMENT_RUNBOOK.md`
+- refined `docs/guides/DEPLOYMENT_RUNBOOK.md`
 - refined proof and setup guidance with less duplication
 
 ## 6. Harden deployed proof automation

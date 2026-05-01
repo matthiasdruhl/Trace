@@ -1,0 +1,13 @@
+{
+  "name": "trace-ai-code-reviewer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "LLM-assisted code reviewer for Trace repo changes",
+  "scripts": {
+    "review": "node review-agent.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

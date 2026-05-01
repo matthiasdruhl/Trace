@@ -29,7 +29,7 @@ function Test-TraceAppDeployment {
 
     $normalizedBaseUrl = $AppBaseUrl.TrimEnd("/")
 
-    $rootResponse = Invoke-WebRequest -Uri $normalizedBaseUrl -Method Get
+    $rootResponse = Invoke-WebRequest -Uri $normalizedBaseUrl -Method Get -UseBasicParsing
     if ($rootResponse.StatusCode -ne 200 -or $rootResponse.Content -notmatch "<html") {
         throw "Frontend root smoke test failed for $normalizedBaseUrl"
     }

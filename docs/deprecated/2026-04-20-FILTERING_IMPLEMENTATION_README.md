@@ -292,7 +292,7 @@ The important thing is that:
 - invalid filters are client errors
 - they must not surface backend parser internals verbatim
 
-### 5. Update `docs/API_CONTRACT.md`
+### 5. Update `docs/reference/API_CONTRACT.md`
 
 Change the `sql_filter` description from:
 
@@ -615,7 +615,7 @@ This implementation is complete when all of the following are true:
 3. only the allowed metadata fields can be filtered
 4. timestamp filters are validated
 5. the Lambda test suite covers parser, compiler, and request integration behavior
-6. `docs/API_CONTRACT.md` documents the now-live filtering behavior
+6. `docs/reference/API_CONTRACT.md` documents the now-live filtering behavior
 7. Trace can demo a real hybrid search query such as:
 
 ```text

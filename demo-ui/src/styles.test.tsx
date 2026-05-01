@@ -36,9 +36,26 @@ describe("styles", () => {
     expect(css).toContain("transition: none;");
     expect(css).toContain(".case-card:hover");
     expect(css).toContain("transform: none;");
+    expect(css).toContain(".off-script-banner");
+    expect(css).toContain(".off-script-banner-actions");
+    expect(css).toContain(".judge-instructions-card");
   });
 
-  it("keeps the rendered workspace in the intended narrative order for mobile stacking", async () => {
+  it("ships class hooks and narrow-width layouts for the judge instructions and off-script banner", () => {
+    const css = readStylesheet();
+
+    expect(css).toContain(".judge-instructions-card");
+    expect(css).toContain(".judge-instructions-list");
+    expect(css).toContain(".judge-instructions-item");
+    expect(css).toContain(".judge-instructions-footer");
+    expect(css).toContain(".off-script-banner");
+    expect(css).toContain(".off-script-banner-actions");
+    expect(css).toContain(".off-script-banner-note");
+    expect(css).toContain(".judge-instructions-card,");
+    expect(css).toContain(".off-script-banner-actions,");
+  });
+
+  it("keeps the live workspace ahead of the proof panel in the rendered order", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
@@ -68,13 +85,31 @@ describe("styles", () => {
 
     render(<App />);
 
+    const heroHeading = await screen.findByRole("heading", {
+      name: /turn a vague compliance audit request into narrowed evidence and a handoff-ready briefing/i,
+    });
+    const valueHeading = screen.getByRole("heading", {
+      name: /manual audit review is slow and scattered\. trace compresses it into one visible workflow/i,
+    });
+    const workspaceHeading = screen.getByRole("heading", {
+      name: /use the recommended audit path first, then judge the handoff package it produces/i,
+    });
+    const guidedHeading = screen.getByRole("heading", {
+      name: /start with (one )?recommended audit (response|demo)/i,
+    });
     const composerHeading = screen.getByText(
-      /frame the request and lock the scope you can defend/i,
+      /frame a request, tighten the scope, then run the search/i,
     );
-    const curatedCasesHeading = await screen.findByText(/start from a known pressure case/i);
-    const reasoningHeading = screen.getByText(/interpreted request and active scope/i);
+    const reasoningHeading = screen.getByText(/what trace is currently trying to prove/i);
+    const proofHeading = screen.getByRole("heading", {
+      name: /optional supporting notes for the audit-response story and cold-archive retrieval claim/i,
+    });
 
-    expectDocumentOrder(composerHeading, curatedCasesHeading);
-    expectDocumentOrder(curatedCasesHeading, reasoningHeading);
+    expectDocumentOrder(heroHeading, valueHeading);
+    expectDocumentOrder(valueHeading, workspaceHeading);
+    expectDocumentOrder(workspaceHeading, guidedHeading);
+    expectDocumentOrder(guidedHeading, composerHeading);
+    expectDocumentOrder(composerHeading, reasoningHeading);
+    expectDocumentOrder(reasoningHeading, proofHeading);
   });
 });

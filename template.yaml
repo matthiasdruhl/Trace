@@ -264,6 +264,13 @@ Resources:
       RouteKey: 'GET /api/health'
       Target: !Sub 'integrations/${TraceAppApiIntegration}'
 
+  TraceAppInterpretScopeRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref TraceHttpApi
+      RouteKey: 'POST /api/interpret-scope'
+      Target: !Sub 'integrations/${TraceAppApiIntegration}'
+
   TraceAppFrontendBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain

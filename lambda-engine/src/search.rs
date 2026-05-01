@@ -27,6 +27,22 @@ const ALLOWED_COLUMNS: &[&str] = &[
     "city_code",
     "doc_type",
     "text_content",
+    "source_record_id",
+    "source_collection",
+    "source_excerpt",
+    "data_classification",
+    "redaction_status",
+    "dataset_label",
+    "dataset_kind",
+];
+const OPTIONAL_METADATA_COLUMNS: &[&str] = &[
+    "source_record_id",
+    "source_collection",
+    "source_excerpt",
+    "data_classification",
+    "redaction_status",
+    "dataset_label",
+    "dataset_kind",
 ];
 
 fn default_k() -> u32 {
@@ -45,6 +61,7 @@ fn normalize_k_upper(k: u32) -> u32 {
 }
 
 /// Search body (direct Lambda JSON or API Gateway `body` JSON).
+/// Unknown fields are ignored for backward compatibility with older public payload variants.
 #[derive(Debug, Deserialize)]
 pub struct SearchRequest {
     pub query_vector: Vec<f32>,
@@ -56,15 +73,23 @@ pub struct SearchRequest {
     #[serde(default)]
     pub columns: Option<Vec<String>>,
     /// Optional `sql_filter` field (historical name). Empty / whitespace-only means no filter.
-    /// Non-empty values must parse as the constrained filter language (see [`crate::filter`]);
-    /// otherwise [`SearchRequest::validate`] returns **400** (`INVALID_SQL_FILTER` / `INVALID_FILTER_VALUE`).
+    /// When empty or whitespace-only, **[`crate::filter::parse_filter`] is not run** and retrieval
+    /// spans the full table (semantic-only arm). Callers that need an explicit contrast mode should
+    /// rely on the app API's `retrievalStrategy: "semantic_only"` field rather than ambiguous
+    /// empty-filter payloads.
     #[serde(default)]
     pub sql_filter: String,
 }
 
 impl SearchRequest {
-    /// Returns the effective `k` after rejecting explicit zero and applying [`normalize_k_upper`].
-    pub fn validate(&self) -> Result<u32, ApiError> {
+    fn validate_and_compile_filter(&self) -> Result<(u32, Option<String>), ApiError> {
+        if self.query_vector.iter().any(|value| !value.is_finite()) {
+            return Err(ApiError::bad_request(
+                "INVALID_VECTOR_VALUE",
+                "query_vector must contain only finite numbers.",
+            ));
+        }
+
         let n_chars = self.sql_filter.chars().count();
         if n_chars > MAX_SQL_FILTER_CHARS {
             return Err(ApiError::bad_request(
@@ -75,9 +100,7 @@ impl SearchRequest {
             ));
         }
 
-        if !self.sql_filter.trim().is_empty() {
-            crate::filter::parse_filter(&self.sql_filter)?;
-        }
+        let compiled_filter = crate::filter::parse_and_compile(&self.sql_filter)?;
 
         const MSG: &str = "Invalid limit: must be a positive integer greater than zero.";
         let k = match self.k {
@@ -88,11 +111,17 @@ impl SearchRequest {
             Some(k) => k,
         };
         debug_assert!(k >= 1);
-        Ok(normalize_k_upper(k))
+        Ok((normalize_k_upper(k), compiled_filter))
+    }
+
+    /// Returns the effective `k` after rejecting explicit zero and applying [`normalize_k_upper`].
+    pub fn validate(&self) -> Result<u32, ApiError> {
+        let (k, _) = self.validate_and_compile_filter()?;
+        Ok(k)
     }
 }
 
-/// JSON success envelope for `POST /search` (see `docs/API_CONTRACT.md`).
+/// JSON success envelope for `POST /search` (see `docs/reference/API_CONTRACT.md`).
 #[derive(Debug, Serialize)]
 pub struct SearchResponse {
     pub ok: bool,
@@ -309,6 +338,21 @@ fn resolve_projection(req: &SearchRequest) -> Result<Vec<String>, KernelError> {
     Ok(proj)
 }
 
+fn drop_missing_optional_metadata_columns(
+    dataset: &lance::Dataset,
+    projection: Vec<String>,
+) -> Vec<String> {
+    let schema = dataset.schema();
+    projection
+        .into_iter()
+        .filter(|column| {
+            column == "_distance"
+                || !OPTIONAL_METADATA_COLUMNS.contains(&column.as_str())
+                || schema.field(column).is_some()
+        })
+        .collect()
+}
+
 fn arrow_scalar_to_json(
     col: &ArrayRef,
     row: usize,
@@ -472,7 +516,7 @@ async fn run_vector_search(
         "k must be validated before calling run_vector_search"
     );
 
-    let projection = resolve_projection(req)?;
+    let projection = drop_missing_optional_metadata_columns(dataset, resolve_projection(req)?);
     let proj_refs: Vec<&str> = projection.iter().map(|s| s.as_str()).collect();
 
     // Lance 4 `nearest`: pass a flat primitive array for `FixedSizeList` columns; passing
@@ -511,10 +555,9 @@ async fn run_vector_search(
 
 /// Opens the Lance dataset (lazy, once per runtime) and runs IVF-PQ ANN search.
 pub async fn run(req: &SearchRequest, deps: &RuntimeDeps<'_>) -> Result<SearchResponse, ApiError> {
-    let k = req.validate()?;
+    let (k, compiled_filter) = req.validate_and_compile_filter()?;
     let k_usize = k as usize;
     let start = std::time::Instant::now();
-    let compiled_filter = crate::filter::parse_and_compile(&req.sql_filter)?;
     let dataset = get_or_open_dataset(deps.config.lance_uri.as_str()).await?;
     let dim = deps.config.query_vector_dim;
     let results = run_vector_search(
@@ -587,6 +630,15 @@ mod tests {
     }
 
     #[test]
+    fn validate_rejects_non_finite_query_vector_values() {
+        let mut r = req(DEFAULT_QUERY_VECTOR_DIM, None);
+        r.query_vector[0] = f32::INFINITY;
+        let e = r.validate().unwrap_err();
+        assert_eq!(e.status, 400);
+        assert_eq!(e.code, "INVALID_VECTOR_VALUE");
+    }
+
+    #[test]
     fn serde_omitted_k_uses_default() {
         let j = format!(
             "{{\"query_vector\":{}}}",
@@ -606,6 +658,20 @@ mod tests {
         let r: SearchRequest = serde_json::from_str(&j).unwrap();
         assert_eq!(r.k, Some(3));
         assert_eq!(r.validate().unwrap(), 3);
+    }
+
+    #[test]
+    fn serde_ignores_unknown_search_request_fields_for_backward_compatibility() {
+        let j = format!(
+            "{{\"query_vector\":{},\"columns\":[\"incident_id\",\"timestamp\"],\"retrievalStrategy\":\"semantic_only\"}}",
+            serde_json::to_string(&vec![0.0f32; DEFAULT_QUERY_VECTOR_DIM]).unwrap()
+        );
+        let r: SearchRequest = serde_json::from_str(&j).unwrap();
+        assert_eq!(
+            r.columns,
+            Some(vec!["incident_id".to_string(), "timestamp".to_string()])
+        );
+        assert_eq!(r.validate().unwrap(), default_k());
     }
 
     #[test]
@@ -705,6 +771,62 @@ mod tests {
         let proj = resolve_projection(&r).unwrap();
         assert!(proj.iter().any(|c| c == "text_content"));
         assert!(proj.iter().any(|c| c == "_distance"));
+    }
+
+    #[test]
+    fn resolve_projection_keeps_default_columns_unchanged() {
+        let r = req(DEFAULT_QUERY_VECTOR_DIM, None);
+        let proj = resolve_projection(&r).unwrap();
+        assert_eq!(
+            proj,
+            vec![
+                "incident_id".to_string(),
+                "timestamp".to_string(),
+                "city_code".to_string(),
+                "doc_type".to_string(),
+                "_distance".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn resolve_projection_accepts_app_api_metadata_columns() {
+        let mut r = req(DEFAULT_QUERY_VECTOR_DIM, None);
+        r.include_text = true;
+        r.columns = Some(vec![
+            "incident_id".to_string(),
+            "timestamp".to_string(),
+            "city_code".to_string(),
+            "doc_type".to_string(),
+            "text_content".to_string(),
+            "source_record_id".to_string(),
+            "source_collection".to_string(),
+            "source_excerpt".to_string(),
+            "data_classification".to_string(),
+            "redaction_status".to_string(),
+            "dataset_label".to_string(),
+            "dataset_kind".to_string(),
+        ]);
+
+        let proj = resolve_projection(&r).unwrap();
+        assert_eq!(
+            proj,
+            vec![
+                "incident_id".to_string(),
+                "timestamp".to_string(),
+                "city_code".to_string(),
+                "doc_type".to_string(),
+                "text_content".to_string(),
+                "source_record_id".to_string(),
+                "source_collection".to_string(),
+                "source_excerpt".to_string(),
+                "data_classification".to_string(),
+                "redaction_status".to_string(),
+                "dataset_label".to_string(),
+                "dataset_kind".to_string(),
+                "_distance".to_string(),
+            ]
+        );
     }
 
     #[test]
@@ -879,6 +1001,45 @@ mod tests {
         )
         .await
         .map_err(kernel_err_to_api)
+    }
+
+    #[tokio::test]
+    async fn search_omits_missing_optional_metadata_columns_for_legacy_datasets() {
+        let tmp = tempdir().unwrap();
+        let uri = tmp.path().to_str().unwrap();
+        let ds = write_filter_fixture_dataset(uri).await;
+
+        let req = SearchRequest {
+            query_vector: vec![1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            k: Some(3),
+            include_text: false,
+            columns: Some(vec![
+                "incident_id".to_string(),
+                "timestamp".to_string(),
+                "source_record_id".to_string(),
+                "dataset_label".to_string(),
+            ]),
+            sql_filter: String::new(),
+        };
+
+        let hits = run_vector_search(
+            &ds,
+            &req,
+            req.validate().unwrap() as usize,
+            FILTER_FIXTURE_DIM,
+            None,
+            false,
+        )
+        .await
+        .unwrap();
+
+        assert!(!hits.is_empty());
+        let first = hits[0].as_object().unwrap();
+        assert!(first.contains_key("incident_id"));
+        assert!(first.contains_key("timestamp"));
+        assert!(first.contains_key("score"));
+        assert!(!first.contains_key("source_record_id"));
+        assert!(!first.contains_key("dataset_label"));
     }
 
     #[tokio::test]

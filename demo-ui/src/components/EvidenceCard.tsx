@@ -4,6 +4,7 @@ import {
   buildFilterMatchChips,
   formatScore,
   formatTimestamp,
+  humanizeDocType,
 } from "../utils";
 
 type EvidenceCardProps = {
@@ -12,8 +13,37 @@ type EvidenceCardProps = {
   filters: SearchFilters;
 };
 
+function humanizeClassification(classification: SearchResult["dataClassification"]): string {
+  switch (classification) {
+    case "public":
+      return "Public";
+    case "internal":
+      return "Internal";
+    case "confidential":
+      return "Confidential";
+    case "restricted":
+      return "Restricted";
+    default:
+      return "Classification unknown";
+  }
+}
+
+function humanizeRedactionStatus(redactionStatus: SearchResult["redactionStatus"]): string {
+  switch (redactionStatus) {
+    case "none":
+      return "No redaction";
+    case "partial":
+      return "Partial redaction";
+    case "full":
+      return "Full redaction";
+    default:
+      return "Redaction status unknown";
+  }
+}
+
 export function EvidenceCard({ index, result, filters }: EvidenceCardProps) {
   const chips = buildFilterMatchChips(result, filters);
+  const sourceExcerpt = result.sourceExcerpt.trim() || buildExcerpt(result);
 
   return (
     <article className="evidence-card">
@@ -23,17 +53,16 @@ export function EvidenceCard({ index, result, filters }: EvidenceCardProps) {
       </div>
 
       <div className="result-meta-row">
-        <span className="result-id">{result.incident_id}</span>
-        <div className="badge-row">
-          <span className="badge">{result.city_code}</span>
-          <span className="badge">{result.doc_type}</span>
+        <div>
+          <p className="result-title">{humanizeDocType(result.doc_type)}</p>
+          <p className="result-subtitle">{result.city_code}</p>
         </div>
       </div>
 
       {chips.length > 0 ? (
         <div className="badge-row match-chip-row">
-          {chips.map((chip) => (
-            <span className="match-chip" key={chip}>
+          {chips.map((chip, chipIndex) => (
+            <span className="match-chip" key={`${chip}-${chipIndex}`}>
               {chip}
             </span>
           ))}
@@ -42,12 +71,30 @@ export function EvidenceCard({ index, result, filters }: EvidenceCardProps) {
 
       <div className="evidence-copy">
         <div>
-          <p className="block-label">Excerpt</p>
-          <p>{buildExcerpt(result)}</p>
+          <p className="block-label">Why it matched</p>
+          <p>{result.why_this_matched}</p>
         </div>
         <div>
-          <p className="block-label">Result context</p>
-          <p>{result.why_this_matched}</p>
+          <p className="block-label">Evidence excerpt</p>
+          <p>{sourceExcerpt}</p>
+        </div>
+      </div>
+
+      <div className="source-grid">
+        <div className="source-fact">
+          <p className="block-label">Source record</p>
+          <p>{result.sourceRecordId}</p>
+        </div>
+        <div className="source-fact">
+          <p className="block-label">Collection</p>
+          <p>{result.sourceCollection}</p>
+        </div>
+        <div className="source-fact">
+          <p className="block-label">Handling</p>
+          <p>
+            {humanizeClassification(result.dataClassification)} with{" "}
+            {humanizeRedactionStatus(result.redactionStatus).toLowerCase()}.
+          </p>
         </div>
       </div>
 
@@ -55,6 +102,18 @@ export function EvidenceCard({ index, result, filters }: EvidenceCardProps) {
         <span>Relevance score</span>
         <span>{formatScore(result.score)}</span>
       </div>
+
+      <details className="details-panel">
+        <summary>Details</summary>
+        <div className="details-panel-body">
+          <p>
+            <strong>Incident ID:</strong> {result.incident_id}
+          </p>
+          <p>
+            <strong>Timestamp:</strong> {result.timestamp}
+          </p>
+        </div>
+      </details>
     </article>
   );
 }

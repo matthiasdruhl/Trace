@@ -10,7 +10,7 @@ Full scope and deferred work are defined in
 [features/deployed-proof-path.md](features/deployed-proof-path.md).
 
 Use
-[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+[docs/guides/DEPLOYMENT_RUNBOOK.md](DEPLOYMENT_RUNBOOK.md)
 for first-time stack creation, dataset refresh, redeploys, and rollback. Use
 that runbook as the canonical rerun entrypoint. Use this document only after
 you have started from the deployment workflow and need proof-specific flags,
@@ -19,7 +19,7 @@ acceptance rules, artifact interpretation, or stable fixture promotion.
 ## Dataset context reference
 
 Use
-[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+[docs/guides/DEPLOYMENT_RUNBOOK.md](DEPLOYMENT_RUNBOOK.md)
 for the authoritative dataset refresh, promotion, and rollout workflow. This
 section is only a proof-specific reference for dataset roles.
 
@@ -50,7 +50,7 @@ Current state:
 - **Dataset** already uploaded to the bucket/prefix your stack uses (see `template.yaml` parameters `TraceDataBucketName` / `TraceLancePrefix`, or `TRACE_LANCE_S3_URI`).
 - **Embeddings** for real runs: `OPENAI_API_KEY` set (same model family as the deployed Lambda dimension, usually `text-embedding-3-small` and length 1536). For structural smoke only, use `--mock-embeddings`: HTTP uses a deterministic query vector, and the proof run sets the bridge env `USE_MOCK_EMBEDDINGS` for MCP. Rankings may differ between HTTP and MCP in that mode.
 - **HTTP auth**: if the stack uses an API key secret, set `TRACE_API_KEY` or `TRACE_MCP_API_KEY` to match the deployed secret.
-- Use `docs/DEPLOYMENT_RUNBOOK.md` for first-time stack creation or redeployment workflow; use this runbook for ongoing proof execution after stacks already exist.
+- Use `docs/guides/DEPLOYMENT_RUNBOOK.md` for first-time stack creation or redeployment workflow; use this runbook for ongoing proof execution after stacks already exist.
 
 ## Resolve context
 
@@ -70,7 +70,7 @@ matches runtime dimension expectations.
 ## Command reference
 
 The canonical rerun entrypoint lives in
-[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md).
+[docs/guides/DEPLOYMENT_RUNBOOK.md](DEPLOYMENT_RUNBOOK.md).
 The examples here are reference forms for interpreting or customizing a proof
 run after you have already entered the deployed proof workflow.
 

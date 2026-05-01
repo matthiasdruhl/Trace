@@ -2,9 +2,9 @@
 
 Last updated: 2026-04-28
 
-Use [README.md](C:/Users/matth/Projects/Trace/Trace/README.md) to choose the
+Use [README.md](../../README.md) to choose the
 right operator path and
-[docs/DEPLOYMENT_RUNBOOK.md](C:/Users/matth/Projects/Trace/Trace/docs/DEPLOYMENT_RUNBOOK.md)
+[docs/guides/DEPLOYMENT_RUNBOOK.md](DEPLOYMENT_RUNBOOK.md)
 for end-to-end stack work. This runbook is only for the local retrieval
 relevance harness and its outputs.
 
@@ -19,7 +19,7 @@ dataset and compare three local methods on the same labeled cases:
   Python-side filtering over a configurable candidate pool
 
 This is local evidence for retrieval quality on a small labeled corpus. It is
-separate from the deployed proof path in `docs/deployed-proof-runbook.md`, and
+separate from the deployed proof path in `docs/guides/deployed-proof-runbook.md`, and
 it should not be read as proof that the deployed stack follows the same path or
 that the current retrieval approach is broadly superior outside this corpus.
 

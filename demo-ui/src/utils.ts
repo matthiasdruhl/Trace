@@ -2,11 +2,13 @@ import type {
   ApiSearchRequest,
   HandoffSummary,
   InvestigationWorkspaceModel,
+  RetrievalStrategy,
   SearchFilters,
   SearchResponse,
   SearchResult,
   SubmittedSearchContext,
 } from "./types";
+import { canonicalizeTraceCityCode, TRACE_DOC_TYPES } from "./traceVocab";
 
 type DateBoundary = "start" | "end";
 
@@ -29,6 +31,41 @@ export function normalizeSearchFilters(filters: SearchFilters): SearchFilters {
     docType: trimOrUndefined(filters.docType ?? "") ?? "",
     startDate: trimOrUndefined(filters.startDate ?? "") ?? "",
     endDate: trimOrUndefined(filters.endDate ?? "") ?? "",
+  };
+}
+
+export function canonicalizeTraceDocType(value: string): string {
+  const trimmed = value.trim();
+  const canonical = TRACE_DOC_TYPES.find(
+    (docType) => docType.toLowerCase() === trimmed.toLowerCase(),
+  );
+  return canonical ?? trimmed;
+}
+
+/** Apply suggested fields; explicit empty / whitespace-only strings clear that field. Omitted keys keep draft values. */
+export function mergeInterpretedSuggestionIntoDraftFilters(
+  current: SearchFilters,
+  suggestion: SearchFilters,
+): SearchFilters {
+  const base = normalizeSearchFilters(current);
+
+  return {
+    cityCode:
+      suggestion.cityCode !== undefined
+        ? (trimOrUndefined(suggestion.cityCode) !== undefined ? suggestion.cityCode.trim() : "")
+        : base.cityCode,
+    docType:
+      suggestion.docType !== undefined
+        ? (trimOrUndefined(suggestion.docType) !== undefined ? suggestion.docType.trim() : "")
+        : base.docType,
+    startDate:
+      suggestion.startDate !== undefined
+        ? (trimOrUndefined(suggestion.startDate) !== undefined ? suggestion.startDate.trim() : "")
+        : base.startDate,
+    endDate:
+      suggestion.endDate !== undefined
+        ? (trimOrUndefined(suggestion.endDate) !== undefined ? suggestion.endDate.trim() : "")
+        : base.endDate,
   };
 }
 
@@ -80,21 +117,50 @@ export function formatDateBoundaryTimestamp(
   return `${padDatePart(parsed.year, 4)}-${padDatePart(parsed.month)}-${padDatePart(parsed.day)}T${timePortion}`;
 }
 
+export function formatQueryModeLabel(mode: string): string {
+  switch (mode) {
+    case "scoped_hybrid":
+      return "Scoped hybrid";
+    case "semantic_only":
+      return "Semantic-only";
+    case "live":
+      return "Live";
+    default:
+      return mode;
+  }
+}
+
 export function buildSearchRequest(
   queryText: string,
   filters: SearchFilters,
+  options?: { retrievalStrategy?: RetrievalStrategy; limit?: number },
 ): ApiSearchRequest {
   const normalizedQuery = queryText.trim();
+  const strategy = options?.retrievalStrategy ?? "default";
+  const limit = options?.limit ?? 5;
+
+  if (strategy === "semantic_only") {
+    return {
+      queryText: normalizedQuery,
+      limit,
+      retrievalStrategy: "semantic_only",
+    };
+  }
+
   const normalizedFilters = normalizeSearchFilters(filters);
-  const cityCode = trimOrUndefined(normalizedFilters.cityCode ?? "");
-  const docType = trimOrUndefined(normalizedFilters.docType ?? "");
+  const cityCode = trimOrUndefined(
+    canonicalizeTraceCityCode(normalizedFilters.cityCode ?? ""),
+  );
+  const docType = trimOrUndefined(
+    canonicalizeTraceDocType(normalizedFilters.docType ?? ""),
+  );
   const startDate = trimOrUndefined(normalizedFilters.startDate ?? "");
   const endDate = trimOrUndefined(normalizedFilters.endDate ?? "");
 
   const apiFilters: NonNullable<ApiSearchRequest["filters"]> = {};
 
   if (cityCode) {
-    apiFilters.cityCode = cityCode.toUpperCase();
+    apiFilters.cityCode = cityCode;
   }
   if (docType) {
     apiFilters.docType = docType;
@@ -115,7 +181,7 @@ export function buildSearchRequest(
   return {
     queryText: normalizedQuery,
     filters: Object.keys(apiFilters).length > 0 ? apiFilters : undefined,
-    limit: 5,
+    limit,
   };
 }
 
@@ -167,6 +233,10 @@ export function formatLatency(milliseconds: number): string {
 
 export function formatScore(score: number): string {
   return score.toFixed(2);
+}
+
+export function humanizeDocType(docType: string): string {
+  return docType.replace(/_/g, " ");
 }
 
 export function summarizeActiveFilters(filters: SearchFilters): string {
@@ -236,7 +306,7 @@ export function buildFilterMatchChips(
     chips.push("City scope match");
   }
 
-  if (docType && result.doc_type === docType) {
+  if (docType && result.doc_type.toUpperCase() === docType.toUpperCase()) {
     chips.push("Document type scope match");
   }
 
@@ -249,12 +319,22 @@ export function buildFilterMatchChips(
       ? Date.parse(formatDateBoundaryTimestamp(endDate, "end") ?? "")
       : null;
 
-    if (
-      Number.isFinite(resultTimestamp) &&
-      (startTimestamp === null || resultTimestamp >= startTimestamp) &&
-      (endTimestamp === null || resultTimestamp <= endTimestamp)
-    ) {
-      chips.push("Within requested date range");
+    if (Number.isFinite(resultTimestamp)) {
+      const afterStart = startTimestamp === null || resultTimestamp >= startTimestamp;
+      const beforeEnd = endTimestamp === null || resultTimestamp <= endTimestamp;
+
+      if (afterStart && beforeEnd) {
+        // Only claim "within date range" when both boundaries are active so
+        // the chip is unambiguous. With a single open boundary, use a
+        // directional label instead.
+        if (startDate && endDate) {
+          chips.push("Within requested date range");
+        } else if (startDate) {
+          chips.push("After start date");
+        } else {
+          chips.push("Before end date");
+        }
+      }
     }
   }
 
@@ -262,7 +342,12 @@ export function buildFilterMatchChips(
 }
 
 export function buildPrimaryEvidenceLabel(result: SearchResult): string {
-  return `${result.incident_id} · ${result.doc_type} · ${result.city_code} · ${formatTimestamp(result.timestamp)}`;
+  return [
+    result.incident_id,
+    result.doc_type,
+    result.city_code,
+    formatTimestamp(result.timestamp),
+  ].join(" | ");
 }
 
 export function buildHandoffSummary(
@@ -276,11 +361,17 @@ export function buildHandoffSummary(
     supportingCount > 0
       ? ` with ${supportingCount} supporting record${supportingCount === 1 ? "" : "s"}`
       : "";
+  const primaryEvidence = [
+    topLead.incident_id,
+    topLead.doc_type,
+    topLead.city_code,
+    formatTimestamp(topLead.timestamp),
+  ].join(" | ");
 
   return {
     goal: queryText.trim(),
     appliedScope: activeScope,
-    primaryEvidence: buildPrimaryEvidenceLabel(topLead),
+    primaryEvidence,
     suggestedHandoff: `Review incident ${topLead.incident_id}${supportingLabel} in this scope before escalation.`,
   };
 }
@@ -296,15 +387,23 @@ export function deriveInvestigationWorkspaceModel(
   const activeScope =
     response?.appliedFilter.summary || summarizeActiveFilters(activeFilters);
   const results = response?.results ?? [];
-  const topLead = results[0] ?? null;
-  const supportingResults = topLead ? results.slice(1) : [];
+  const topLeadIncidentId = response?.meta.topLeadIncidentId;
+  const topLead =
+    (topLeadIncidentId
+      ? results.find((result) => result.incident_id === topLeadIncidentId) ?? results[0]
+      : results[0]) ?? null;
+  const supportingResults = topLead
+    ? results.filter((result) => result.incident_id !== topLead.incident_id)
+    : [];
 
   return {
     investigationRequest:
       response?.queryText ?? trimOrUndefined(activeQueryText) ?? "No investigation request yet",
     activeScope,
     timeWindow: formatTimeWindow(activeFilters),
-    queryModeLabel: response ? `${response.meta.queryMode} retrieval` : "Awaiting query",
+    queryModeLabel: response
+      ? `${formatQueryModeLabel(response.meta.queryMode)} retrieval`
+      : "Awaiting query",
     resultCount: response?.meta.resultCount ?? 0,
     latencyLabel: response ? formatLatency(response.meta.tookMs) : "Timing unavailable",
     submittedFilters: activeFilters,

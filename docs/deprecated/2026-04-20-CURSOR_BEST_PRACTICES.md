@@ -5,7 +5,7 @@
 Cursor is only as smart as the context you provide. In a high-stakes sprint, manage your context window to avoid hallucination.
 * **@Files:** Always explicitly reference `@CURSOR_PROMPT.md` or `@DATA_SPEC.md` when starting a new task.
 * **@Codebase:** Use sparingly. Only use this when you need the AI to understand cross-file dependencies (e.g., "How does my MCP server call my Rust Lambda?").
-* **@Docs:** Add the documentation for `lance`, `duckdb`, and `aws-sdk-s3` directly. This ensures Cursor doesn't use outdated API methods. The canonical list lives in [`docs/RUST_CRATE_DOCS.md`](RUST_CRATE_DOCS.md).
+* **@Docs:** Add the documentation for `lance`, `duckdb`, and `aws-sdk-s3` directly. This ensures Cursor doesn't use outdated API methods. The canonical list lives in [`docs/reference/RUST_CRATE_DOCS.md`](../reference/RUST_CRATE_DOCS.md).
 
 Lance (core engine): https://lancedb.github.io/lance/rust/lance/index.html
 
